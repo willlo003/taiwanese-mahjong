@@ -1,0 +1,154 @@
+import { v4 as uuidv4 } from 'uuid';
+import { MahjongGame } from './MahjongGame.js';
+
+export class GameManager {
+  constructor() {
+    this.players = new Map(); // ws -> player data
+    this.game = null;
+    this.maxPlayers = 4;
+  }
+
+  handleMessage(ws, data) {
+    const { type, payload } = data;
+
+    switch (type) {
+      case 'join':
+        this.handleJoin(ws, payload);
+        break;
+      case 'ready':
+        this.handleReady(ws);
+        break;
+      case 'action':
+        this.handleAction(ws, payload);
+        break;
+      default:
+        ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
+    }
+  }
+
+  handleJoin(ws, payload) {
+    const { name } = payload;
+
+    // Validate name
+    if (!name || name.trim().length === 0) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Name is required' }));
+      return;
+    }
+
+    // Check if game is full
+    if (this.players.size >= this.maxPlayers) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Game is full' }));
+      return;
+    }
+
+    // Check if name is already taken
+    const nameTaken = Array.from(this.players.values()).some(p => p.name === name.trim());
+    if (nameTaken) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Name is already taken' }));
+      return;
+    }
+
+    // Add player
+    const playerId = uuidv4();
+    const player = {
+      id: playerId,
+      name: name.trim(),
+      ws,
+      ready: false,
+      position: this.players.size // 0: East, 1: South, 2: West, 3: North
+    };
+
+    this.players.set(ws, player);
+
+    // Send success to the joining player
+    ws.send(JSON.stringify({
+      type: 'joined',
+      payload: {
+        playerId,
+        position: player.position,
+        name: player.name
+      }
+    }));
+
+    // Broadcast updated player list to all players
+    this.broadcastPlayerList();
+
+    console.log(`Player joined: ${name} (${this.players.size}/${this.maxPlayers})`);
+  }
+
+  handleReady(ws) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    player.ready = true;
+    this.broadcastPlayerList();
+
+    // Check if all players are ready
+    if (this.players.size === this.maxPlayers && this.allPlayersReady()) {
+      this.startGame();
+    }
+  }
+
+  handleAction(ws, payload) {
+    const player = this.players.get(ws);
+    if (!player || !this.game) return;
+
+    this.game.handlePlayerAction(player.id, payload);
+  }
+
+  handleDisconnect(ws) {
+    const player = this.players.get(ws);
+    if (player) {
+      console.log(`Player disconnected: ${player.name}`);
+      this.players.delete(ws);
+      
+      // Reset game if a player disconnects
+      if (this.game) {
+        this.game = null;
+        this.broadcast({ type: 'game_ended', payload: { reason: 'Player disconnected' } });
+      }
+
+      this.broadcastPlayerList();
+    }
+  }
+
+  allPlayersReady() {
+    return Array.from(this.players.values()).every(p => p.ready);
+  }
+
+  startGame() {
+    console.log('Starting game with 4 players...');
+    
+    const playerList = Array.from(this.players.values());
+    this.game = new MahjongGame(playerList, this.broadcast.bind(this));
+    this.game.start();
+  }
+
+  broadcastPlayerList() {
+    const playerList = Array.from(this.players.values()).map(p => ({
+      id: p.id,
+      name: p.name,
+      position: p.position,
+      ready: p.ready
+    }));
+
+    this.broadcast({
+      type: 'player_list',
+      payload: { players: playerList }
+    });
+  }
+
+  broadcast(message) {
+    const messageStr = JSON.stringify(message);
+    this.players.forEach((player) => {
+      if (player.ws.readyState === 1) { // WebSocket.OPEN
+        player.ws.send(messageStr);
+      }
+    });
+  }
+
+  getPlayerCount() {
+    return this.players.size;
+  }
+}
+
