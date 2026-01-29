@@ -1,471 +1,535 @@
+/* Main Game Screen - Mahjong Table Layout (Mobile Landscape First) */
 .game-screen {
   width: 100%;
   height: 100vh;
-  display: grid;
-  grid-template-areas:
-    "top-discard top-discard top-discard"
-    "left-discard center right-discard"
-    "bottom-discard bottom-discard bottom-discard";
-  grid-template-columns: 200px 1fr 200px;
-  grid-template-rows: auto 1fr auto;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   overflow: hidden;
   position: relative;
-  padding: 10px;
-  gap: 8px;
+  padding: 3px;
+  gap: 2px;
   box-sizing: border-box;
 }
 
-/* Center area - Supply Disk (hidden tiles) */
+/* Top area - contains left, top-hand, center, right in a grid */
+.game-screen-top {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-areas:
+    "left-area top-hand right-area"
+    "left-area center right-area";
+  grid-template-columns: 70px 1fr 70px;
+  grid-template-rows: 45px 1fr;
+  gap: 2px;
+  overflow: hidden;
+}
+
+/* Bottom bar - my hand + actions, independent of grid above */
+.game-screen-bottom {
+  height: 60px;
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+
+/* Desktop/larger screens */
+@media (min-width: 1024px) {
+  .game-screen {
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .game-screen-top {
+    grid-template-columns: 140px 1fr 140px;
+    grid-template-rows: 70px 1fr;
+    gap: 6px;
+  }
+
+  .game-screen-bottom {
+    height: 100px;
+    gap: 8px;
+  }
+}
+
+
+
+/* Left and Right Player Areas (hand only, full height) */
+.player-area-left,
+.player-area-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+
+.player-area-left {
+  grid-area: left-area;
+}
+
+.player-area-right {
+  grid-area: right-area;
+}
+
+/* Bottom Actions Area - no longer uses grid-area */
+.bottom-actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 2px;
+}
+
+/* Center Area - Game Info and All 4 Discards */
 .center-area {
   grid-area: center;
   display: flex;
+  flex-direction: row;
+  background: rgba(46, 125, 50, 0.3);
+  border-radius: 8px;
+  border: 2px solid rgba(139, 69, 19, 0.5);
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
+  padding: 3px;
+  gap: 3px;
+}
+
+@media (min-width: 1024px) {
+  .center-area {
+    border-radius: 12px;
+    border: 3px solid rgba(139, 69, 19, 0.6);
+    padding: 6px;
+    gap: 6px;
+  }
+}
+
+/* Center column (top discard, game info, bottom discard) */
+.center-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (min-width: 1024px) {
+  .center-column {
+    gap: 6px;
+  }
+}
+
+/* Left/Right discard areas - width = 6 tiles height + gaps (26*6 + 10 = 166px) */
+.discard-area-left,
+.discard-area-right {
+  width: 166px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(100, 150, 200, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: flex-start;
+  overflow: auto;
+}
+
+@media (min-width: 1024px) {
+  .discard-area-left,
+  .discard-area-right {
+    width: 240px;
+    gap: 3px;
+    padding: 4px;
+  }
+}
+
+/* Game Info Area (center of center column) */
+.game-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 10px;
+  color: #fff;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 1024px) {
+  .game-info {
+    gap: 15px;
+    padding: 8px 15px;
+    font-size: 14px;
+  }
+}
+
+.game-info-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.game-info-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.game-info-value {
+  font-weight: 600;
+  color: #fff;
+}
+
+.game-info-value.highlight {
+  color: #4CAF50;
+}
+
+/* Top/Bottom Discard Areas (in center column) */
+.discard-area-top,
+.discard-area-bottom {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(100, 150, 200, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: flex-start;
+  justify-content: center;
+  overflow: auto;
+}
+
+@media (min-width: 1024px) {
+  .discard-area-top,
+  .discard-area-bottom {
+    gap: 3px;
+    padding: 6px;
+  }
+}
+
+/* Generic discard area base (unused now but kept for compatibility) */
+.discard-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(100, 150, 200, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: flex-start;
+  justify-content: center;
+  overflow: auto;
+}
+
+
+
+/* Player Hand Area */
+.player-hand {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px;
+  display: flex;
+  gap: 2px;
+}
+
+@media (min-width: 1024px) {
+  .player-hand {
+    border-radius: 6px;
+    padding: 6px;
+    gap: 4px;
+  }
+}
+
+.player-hand-top {
+  grid-area: top-hand;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
-  background: rgba(46, 125, 50, 0.3);
-  border-radius: 15px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  min-height: 200px;
 }
 
-/* Supply Disk - center hidden tiles */
-.supply-disk {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-/* Wind Positions Display (東南西北) */
-.wind-positions {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.wind-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 8px;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  min-width: 50px;
-  transition: all 0.3s ease;
-}
-
-.wind-indicator.dealer {
-  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-  border-color: #FF8C00;
-  box-shadow: 0 4px 8px rgba(255, 140, 0, 0.4);
-  transform: scale(1.1);
-}
-
-.wind-char {
-  font-size: 20px;
-  font-weight: 700;
-  color: #1e3c72;
-}
-
-.wind-indicator.dealer .wind-char {
-  color: #8B4513;
-}
-
-.dealer-marker {
-  font-size: 12px;
-  font-weight: 700;
-  color: #8B4513;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.supply-disk-icon {
-  font-size: 36px;
-}
-
-.game-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 12px 20px;
-  border-radius: 10px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-}
-
-.tiles-remaining {
-  font-size: 15px;
-  font-weight: 700;
-  color: #1e3c72;
-}
-
-.turn-indicator {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.your-turn {
-  color: #4CAF50;
-  animation: pulse 1.5s infinite;
-}
-
-.waiting {
-  color: #666;
-}
-
-/* Discard Disk Areas - 4 separate areas for each player */
-.top-discard-area {
-  grid-area: top-discard;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  max-height: 25vh;
-  overflow-y: auto;
-}
-
-.bottom-discard-area {
-  grid-area: bottom-discard;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  max-height: 35vh;
-  overflow-y: auto;
-}
-
-.left-discard-area {
-  grid-area: left-discard;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-.right-discard-area {
-  grid-area: right-discard;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-/* Player Hand Area (private tiles) */
-.player-hand-area {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 8px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.player-info-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.player-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.player-info {
+.player-hand-bottom {
   flex: 1;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  border-radius: 6px;
 }
 
-.player-name {
+@media (min-width: 1024px) {
+  .player-hand-bottom {
+    padding: 8px 12px;
+  }
+}
+
+/* Player info in side hand areas - positioned at top-left corner */
+.side-player-info {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .side-player-info {
+    font-size: 12px;
+    top: 4px;
+    left: 4px;
+  }
+}
+
+/* Player info for top player */
+.player-info-compact {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+}
+
+@media (min-width: 1024px) {
+  .player-info-compact {
+    gap: 8px;
+    font-size: 11px;
+    top: 5px;
+    left: 5px;
+  }
+}
+
+.player-hand-top {
+  position: relative;
+}
+
+.player-name-compact {
   font-weight: 600;
-  color: #1e3c72;
-  font-size: 12px;
+  color: #fff;
 }
 
-.tile-count {
-  color: #666;
+.player-name-compact.active {
+  color: #4CAF50;
+  text-shadow: 0 0 8px #4CAF50;
+}
+
+.tile-count-compact {
+  color: rgba(255, 255, 255, 0.7);
   font-size: 10px;
 }
 
-.player-name.active {
-  color: #4CAF50;
-}
-
-/* Player hand tiles (face-down for opponents) */
+/* Player Tiles (face-down for opponents) */
 .player-tiles {
   display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
+  gap: 1px;
   justify-content: center;
-  max-width: 180px;
+  flex-direction: row;
+}
+
+.player-tiles-top,
+.player-tiles-bottom {
+  flex-wrap: wrap;
+}
+
+/* Left player tiles - vertical column, tiles rotated 90deg to appear horizontal */
+.player-tiles-left {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0px;
+  max-height: 100%;
+}
+
+/* Right player tiles - vertical column, tiles rotated -90deg to appear horizontal */
+.player-tiles-right {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  gap: 0px;
+  max-height: 100%;
 }
 
 .tile-back {
-  width: 24px;
-  height: 32px;
+  width: 18px;
+  height: 26px;
   background: linear-gradient(135deg, #2c5f2d 0%, #97c93d 100%);
   border-radius: 2px;
   border: 1px solid #1e4620;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  position: relative;
 }
 
-/* Player Own Disk (discards in front of each player) */
-.player-own-disk {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
-  padding: 6px;
-  min-height: 50px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  justify-content: center;
-  align-content: flex-start;
-  max-width: 100%;
-}
-
-.own-disk-label {
+.tile-back::after {
+  content: '🀫';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   font-size: 10px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  text-align: center;
-  width: 100%;
-  margin-bottom: 4px;
+  opacity: 0.3;
 }
 
-/* Player melds */
-.player-melds {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 4px;
+@media (min-width: 1024px) {
+  .tile-back {
+    width: 28px;
+    height: 38px;
+    border-radius: 3px;
+    border: 2px solid #1e4620;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .tile-back::after {
+    font-size: 16px;
+  }
 }
 
-/* Melds styling */
+/* Left/Right player tile rotations - MUST be after .tile-back base styles */
+.player-tiles-left > .tile-back {
+  transform: rotate(90deg);
+  margin: -3px 0;
+}
+
+.player-tiles-right > .tile-back {
+  transform: rotate(-90deg);
+  margin: -3px 0;
+}
+
+
+
+
+
+/* Melds */
 .meld {
   display: flex;
   gap: 2px;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(76, 175, 80, 0.15);
-  border: 2px solid #4CAF50;
+  padding: 3px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .meld-pong {
   border-color: #2196F3;
-  background: rgba(33, 150, 243, 0.15);
 }
 
 .meld-gang {
   border-color: #9C27B0;
-  background: rgba(156, 39, 176, 0.15);
 }
 
 .meld-chow {
   border-color: #FF9800;
-  background: rgba(255, 152, 0, 0.15);
 }
 
-.meld-type {
-  font-weight: 700;
-  font-size: 12px;
-  margin-right: 3px;
-  color: #333;
-}
-
-/* Bottom player (current user) - larger area */
-.my-hand-area {
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-}
-
-.my-hand-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hand-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: white;
-}
-
-.my-melds-container {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
+/* My Hand (Bottom Player) */
 .my-hand {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 8px;
-  padding: 10px;
   display: flex;
-  gap: 4px;
+  gap: 1px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
   overflow-x: auto;
   overflow-y: hidden;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: flex-start;
-  max-height: 150px;
 }
 
-/* Action buttons */
-.actions {
+/* Player Actions - Single row layout */
+.player-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
+  flex-direction: row;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
 }
 
-.action-button {
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  border-radius: 6px;
+@media (min-width: 1024px) {
+  .player-actions {
+    gap: 3px;
+    padding: 4px;
+  }
+}
+
+/* Action Buttons - Single row */
+.action-btn {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
-  min-width: 90px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.draw-button {
-  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  white-space: nowrap;
 }
 
-.draw-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.discard-button {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-  color: white;
-}
-
-.discard-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.hu-button {
-  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-  color: white;
-}
-
-.hu-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.pong-button {
-  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-  color: white;
-}
-
-.gang-button {
-  background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
-  color: white;
-}
-
-.chow-button {
-  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-  color: white;
-}
-
-.action-button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.action-button:not(:disabled):active {
-  transform: scale(0.95);
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-  .game-screen {
-    grid-template-columns: 150px 1fr 150px;
-    grid-template-rows: 150px 1fr 250px;
-  }
-
-  .player-card {
-    padding: 10px;
-    min-width: 120px;
-  }
-
-  .player-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
-  }
-}
-
-@media (max-width: 768px) {
-  .game-screen {
-    grid-template-columns: 100px 1fr 100px;
-    grid-template-rows: 120px 1fr 220px;
-  }
-
-  .game-info {
-    flex-direction: column;
-    gap: 10px;
-    font-size: 12px;
-  }
-
-  .actions {
-    flex-wrap: wrap;
-  }
-
-  .action-button {
-    font-size: 14px;
+@media (min-width: 1024px) {
+  .action-btn {
     padding: 10px 16px;
-    min-width: 80px;
+    font-size: 16px;
+    border-radius: 6px;
   }
 }
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.action-btn:disabled {
+  background: linear-gradient(135deg, #999 0%, #777 100%);
+  cursor: not-allowed;
+  opacity: 0.4;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.action-btn-hu {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.action-btn-hu:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+}
+
+/* Old responsive rules removed - using mobile-first approach with min-width: 1024px */
 
 /* Animations */
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
 }
 
 @keyframes slideIn {
@@ -481,5 +545,25 @@
 
 .tile-drawn {
   animation: slideIn 0.3s ease-out;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 

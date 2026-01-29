@@ -81,159 +81,117 @@ function GameScreen({
   const leftPlayer = otherPlayers[1];
   const rightPlayer = otherPlayers[2];
 
-  // Render player hand and own disk area
-  const renderPlayerArea = (player, position) => {
+  // Render top player area
+  const renderTopPlayerArea = (player) => {
     if (!player) return null;
-
     const isActive = currentPlayer === player.id;
-    const playerMelds = melds[player.id] || [];
-    const playerDiscards = discardPiles[player.id] || [];
-    // Get real-time tile count for this player
     const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
 
     return (
-      <div className={`${position}-discard-area`}>
-        {/* Player Hand (private) */}
-        <div className="player-hand-area">
-          <div className="player-info-header">
-            <div className="player-avatar">
-              {player.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="player-info">
-              <div className={`player-name ${isActive ? 'active' : ''}`}>
-                {player.name}
-              </div>
-              <div className="tile-count">{tileCount} tiles</div>
-            </div>
-          </div>
-
-          {/* Face-down tiles for opponents */}
-          <div className="player-tiles">
-            {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
-              <div key={idx} className="tile-back" />
-            ))}
-          </div>
-
-          {/* Player's melds */}
-          {playerMelds.length > 0 && (
-            <div className="player-melds">
-              {playerMelds.map((meld, idx) => (
-                <div key={idx} className={`meld meld-${meld.type}`}>
-                  <span className="meld-type">
-                    {meld.type === 'pong' ? '碰' : meld.type === 'gang' ? '槓' : '吃'}
-                  </span>
-                  {meld.tiles.map((tile, tileIdx) => (
-                    <Tile key={tileIdx} tile={tile} size="small" />
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
+      <div className="player-hand player-hand-top">
+        <div className="player-info-compact">
+          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}</span>
         </div>
-
-        {/* Player Own Disk (public discards) */}
-        {playerDiscards.length > 0 && (
-          <div className="player-own-disk">
-            <div className="own-disk-label">{player.name}'s Discards</div>
-            {playerDiscards.map((tile, idx) => (
-              <Tile key={idx} tile={tile} size="small" />
-            ))}
-          </div>
-        )}
+        <div className="player-tiles player-tiles-top">
+          {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
+            <div key={idx} className="tile-back" />
+          ))}
+        </div>
       </div>
     );
   };
 
-  return (
-    <div className="game-screen">
-      {/* Top Player - Hand and Own Disk */}
-      {renderPlayerArea(topPlayer, 'top')}
+  // Render side player area (left or right) - hand only
+  const renderSidePlayerArea = (player, position) => {
+    if (!player) return null;
+    const isActive = currentPlayer === player.id;
+    const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
 
-      {/* Left Player - Hand and Own Disk */}
-      {renderPlayerArea(leftPlayer, 'left')}
-
-      {/* Center Area - Supply Disk (hidden tiles) */}
-      <div className="center-area">
-        <div className="supply-disk">
-          {/* Wind Positions Display (東南西北) */}
-          <div className="wind-positions">
-            {players.map((player, idx) => {
-              const wind = playerWinds[player.id] || '';
-              const windChar = {
-                'east': '東',
-                'south': '南',
-                'west': '西',
-                'north': '北'
-              }[wind] || '';
-              const isDealer = dealerPlayer?.id === player.id;
-
-              return (
-                <div
-                  key={player.id}
-                  className={`wind-indicator ${isDealer ? 'dealer' : ''}`}
-                  title={`${player.name} - ${windChar} ${isDealer ? '(莊)' : ''}`}
-                >
-                  <span className="wind-char">{windChar}</span>
-                  {isDealer && <span className="dealer-marker">莊</span>}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="supply-disk-icon">🀫</div>
-          <div className="game-info">
-            <div className="tiles-remaining">
-              {tilesRemaining} tiles remaining
-            </div>
-            <div className="turn-indicator">
-              {isMyTurn ? (
-                <span className="your-turn">🎯 Your Turn!</span>
-              ) : (
-                <span className="waiting">{currentPlayerName}'s turn</span>
-              )}
-            </div>
-          </div>
+    return (
+      <div className={`player-area-${position}`}>
+        <div className={`side-player-info side-player-info-${position}`}>
+          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}</span>
+        </div>
+        <div className={`player-tiles player-tiles-${position}`}>
+          {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
+            <div key={idx} className="tile-back" />
+          ))}
         </div>
       </div>
+    );
+  };
 
-      {/* Right Player - Hand and Own Disk */}
-      {renderPlayerArea(rightPlayer, 'right')}
 
-      {/* Bottom Player (Current User) - Hand and Own Disk */}
-      <div className="bottom-discard-area">
-        {/* My Own Disk (my discards) */}
-        {discardPiles[playerInfo?.playerId] && discardPiles[playerInfo.playerId].length > 0 && (
-          <div className="player-own-disk">
-            <div className="own-disk-label">Your Discards</div>
-            {discardPiles[playerInfo.playerId].map((tile, idx) => (
+
+  return (
+    <div className="game-screen">
+      {/* Top Area - Left, Center, Right players (uses grid) */}
+      <div className="game-screen-top">
+        {/* Left Area - 上家 (spans from top to middle) */}
+        {renderSidePlayerArea(leftPlayer, 'left')}
+
+        {/* Top Center - 對家 Hand */}
+        {renderTopPlayerArea(topPlayer)}
+
+        {/* Center - Game Info and All 4 Discard Areas */}
+        <div className="center-area">
+          {/* Left Discard (上家) */}
+          <div className="discard-area discard-area-left">
+            {(discardPiles[leftPlayer?.id] || []).map((tile, idx) => (
               <Tile key={idx} tile={tile} size="small" />
             ))}
           </div>
-        )}
 
-        {/* My Hand (private) */}
-        <div className="my-hand-area">
-          <div className="my-hand-header">
-            <div className="hand-label">Your Hand ({sortedHand.length} tiles)</div>
+          {/* Center Column: Top Discard, Game Info, Bottom Discard */}
+          <div className="center-column">
+            {/* Top Discard (對家) */}
+            <div className="discard-area discard-area-top">
+              {(discardPiles[topPlayer?.id] || []).map((tile, idx) => (
+                <Tile key={idx} tile={tile} size="small" />
+              ))}
+            </div>
 
-            {/* My Melds */}
-            {melds[playerInfo?.playerId] && melds[playerInfo.playerId].length > 0 && (
-              <div className="my-melds-container">
-                {melds[playerInfo.playerId].map((meld, idx) => (
-                  <div key={idx} className={`meld meld-${meld.type}`}>
-                    <span className="meld-type">
-                      {meld.type === 'pong' ? '碰' : meld.type === 'gang' ? '槓' : '吃'}
-                    </span>
-                    {meld.tiles.map((tile, tileIdx) => (
-                      <Tile key={tileIdx} tile={tile} size="small" />
-                    ))}
-                  </div>
-                ))}
+            {/* Game Info */}
+            <div className="game-info">
+              <div className="game-info-item">
+                <span className="game-info-label">牌:</span>
+                <span className="game-info-value">{tilesRemaining}</span>
               </div>
-            )}
+              <div className="game-info-item">
+                <span className="game-info-label">莊:</span>
+                <span className="game-info-value">{dealerPlayer?.name || '-'}</span>
+              </div>
+              <div className="game-info-item">
+                {isMyTurn ? (
+                  <span className="game-info-value highlight">🎯 輪到你</span>
+                ) : (
+                  <span className="game-info-value">{currentPlayerName}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Discard (自己) */}
+            <div className="discard-area discard-area-bottom">
+              {(discardPiles[playerInfo?.playerId] || []).map((tile, idx) => (
+                <Tile key={idx} tile={tile} size="small" />
+              ))}
+            </div>
           </div>
 
-          {/* My Hand */}
+          {/* Right Discard (下家) */}
+          <div className="discard-area discard-area-right">
+            {(discardPiles[rightPlayer?.id] || []).map((tile, idx) => (
+              <Tile key={idx} tile={tile} size="small" />
+            ))}
+          </div>
+        </div>
+
+        {renderSidePlayerArea(rightPlayer, 'right')}
+      </div>
+
+      {/* Bottom Bar - My Hand + Action Buttons (independent of grid above) */}
+      <div className="game-screen-bottom">
+        <div className="player-hand player-hand-bottom">
           <div className="my-hand">
             {sortedHand.map((tile) => (
               <Tile
@@ -245,37 +203,18 @@ function GameScreen({
               />
             ))}
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="actions">
-            {/* Draw button - only show when it's player's turn and they haven't drawn */}
-            {canDraw && (
-              <button
-                className="action-button draw-button"
-                onClick={handleDraw}
-              >
-                摸牌 Draw
-              </button>
-            )}
-
-            {/* Discard button - only enabled when a tile is selected and player has drawn */}
-            {hasDrawn && (
-              <button
-                className="action-button discard-button"
-                onClick={handleDiscard}
-                disabled={!canDiscard}
-              >
-                打出 Discard
-              </button>
-            )}
-
-            <button
-              className="action-button hu-button"
-              onClick={handleHu}
-              disabled={!isMyTurn}
-            >
-              胡 Hu!
-            </button>
+        {/* Action Buttons */}
+        <div className="bottom-actions">
+          <div className="player-actions">
+            <button className="action-btn" onClick={handleDraw} disabled={!canDraw}>摸牌</button>
+            <button className="action-btn" onClick={handleDiscard} disabled={!selectedTile || !isMyTurn}>打牌</button>
+            <button className="action-btn" disabled>吃</button>
+            <button className="action-btn" disabled>碰</button>
+            <button className="action-btn" disabled>槓</button>
+            <button className="action-btn" disabled>聽</button>
+            <button className="action-btn action-btn-hu" onClick={handleHu} disabled={!isMyTurn}>胡</button>
           </div>
         </div>
       </div>
