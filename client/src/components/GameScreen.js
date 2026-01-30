@@ -75,11 +75,21 @@ function GameScreen({
     return 0;
   });
 
-  // Get other players in position order (top, left, right)
-  const otherPlayers = players.filter(p => p.id !== playerInfo?.playerId);
-  const topPlayer = otherPlayers[0];
-  const leftPlayer = otherPlayers[1];
-  const rightPlayer = otherPlayers[2];
+  // Get my position (seat)
+  const myPosition = players.find(p => p.id === playerInfo?.playerId)?.position ?? 0;
+
+  // Calculate relative positions (anti-clockwise order: 東→南→西→北)
+  // From my perspective:
+  // - Right (下家): next in anti-clockwise = (myPosition + 1) % 4
+  // - Opposite (對家): across = (myPosition + 2) % 4
+  // - Left (上家): previous in anti-clockwise = (myPosition + 3) % 4
+  const rightPosition = (myPosition + 1) % 4;
+  const topPosition = (myPosition + 2) % 4;
+  const leftPosition = (myPosition + 3) % 4;
+
+  const rightPlayer = players.find(p => p.position === rightPosition);
+  const topPlayer = players.find(p => p.position === topPosition);
+  const leftPlayer = players.find(p => p.position === leftPosition);
 
   // Render top player area
   const renderTopPlayerArea = (player) => {
@@ -87,10 +97,11 @@ function GameScreen({
     const isActive = currentPlayer === player.id;
     const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
 
+    const isDealer = player.id === dealerPlayer?.id;
     return (
       <div className="player-hand player-hand-top">
         <div className="player-info-compact">
-          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}</span>
+          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}{isDealer && ' (莊)'}</span>
         </div>
         <div className="player-tiles player-tiles-top">
           {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
@@ -107,10 +118,11 @@ function GameScreen({
     const isActive = currentPlayer === player.id;
     const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
 
+    const isDealer = player.id === dealerPlayer?.id;
     return (
       <div className={`player-area-${position}`}>
         <div className={`side-player-info side-player-info-${position}`}>
-          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}</span>
+          <span className={`player-name-compact ${isActive ? 'active' : ''}`}>{player.name}{isDealer && ' (莊)'}</span>
         </div>
         <div className={`player-tiles player-tiles-${position}`}>
           {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
@@ -192,6 +204,11 @@ function GameScreen({
       {/* Bottom Bar - My Hand + Action Buttons (independent of grid above) */}
       <div className="game-screen-bottom">
         <div className="player-hand player-hand-bottom">
+          <div className="player-info-compact player-info-bottom">
+            <span className={`player-name-compact ${isMyTurn ? 'active' : ''}`}>
+              {playerInfo?.name}{playerInfo?.playerId === dealerPlayer?.id && ' (莊)'}
+            </span>
+          </div>
           <div className="my-hand">
             {sortedHand.map((tile) => (
               <Tile
@@ -210,11 +227,11 @@ function GameScreen({
           <div className="player-actions">
             <button className="action-btn" onClick={handleDraw} disabled={!canDraw}>摸牌</button>
             <button className="action-btn" onClick={handleDiscard} disabled={!selectedTile || !isMyTurn}>打牌</button>
-            <button className="action-btn" disabled>吃</button>
+            <button className="action-btn" disabled>上</button>
             <button className="action-btn" disabled>碰</button>
             <button className="action-btn" disabled>槓</button>
             <button className="action-btn" disabled>聽</button>
-            <button className="action-btn action-btn-hu" onClick={handleHu} disabled={!isMyTurn}>胡</button>
+            <button className="action-btn action-btn-hu" onClick={handleHu} disabled={!isMyTurn}>食</button>
           </div>
         </div>
       </div>

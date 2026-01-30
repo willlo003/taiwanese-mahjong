@@ -1,13 +1,23 @@
 import React from 'react';
 import './LobbyScreen.css';
 
-function LobbyScreen({ players, playerInfo, onReady }) {
+function LobbyScreen({ players, playerInfo, onReady, onRandomSeats, onStartGame }) {
   // Find the current player's ready status from the players list
   const currentPlayer = players.find(p => p.id === playerInfo?.playerId);
   const isReady = currentPlayer?.ready || false;
+  const isEastPlayer = currentPlayer?.position === 0;
+  const allReady = players.length === 4 && players.every(p => p.ready);
 
   const handleReady = () => {
     onReady();
+  };
+
+  const handleRandomSeats = () => {
+    onRandomSeats();
+  };
+
+  const handleStartGame = () => {
+    onStartGame();
   };
 
   const positions = ['East (東)', 'South (南)', 'West (西)', 'North (北)'];
@@ -20,6 +30,13 @@ function LobbyScreen({ players, playerInfo, onReady }) {
         <div className="player-count">
           {players.length} / 4 Players
         </div>
+
+        {/* Random Seats Button */}
+        {players.length >= 2 && (
+          <button className="random-button" onClick={handleRandomSeats}>
+            🎲 Random Seats
+          </button>
+        )}
 
         <div className="players-grid">
           {[0, 1, 2, 3].map((position) => {
@@ -51,15 +68,21 @@ function LobbyScreen({ players, playerInfo, onReady }) {
           </button>
         )}
 
-        {isReady && (
+        {isReady && !allReady && (
           <div className="ready-message">
             ✓ You are ready! Waiting for other players...
           </div>
         )}
 
-        {players.length === 4 && players.every(p => p.ready) && (
-          <div className="starting-message">
-            🎮 Starting game...
+        {allReady && isEastPlayer && (
+          <button className="start-button" onClick={handleStartGame}>
+            🎮 START GAME
+          </button>
+        )}
+
+        {allReady && !isEastPlayer && (
+          <div className="waiting-message">
+            ✓ All ready! Waiting for 東 to start the game...
           </div>
         )}
       </div>

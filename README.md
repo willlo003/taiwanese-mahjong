@@ -133,7 +133,7 @@ Make sure port 3001 is not blocked by your firewall.
 ## Future Enhancements
 
 - [ ] Complete win condition validation
-- [ ] Pong (碰), Gang (槓), Chow (吃) actions
+- [ ] Pong (碰), Gang (槓), Chow (上) actions
 - [ ] Scoring system
 - [ ] Game history
 - [ ] Sound effects

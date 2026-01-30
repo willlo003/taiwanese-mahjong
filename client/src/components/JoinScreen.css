@@ -86,3 +86,56 @@
   margin: 5px 0;
 }
 
+/* Mobile landscape mode */
+@media (max-height: 500px) and (orientation: landscape) {
+  .join-screen {
+    padding: 10px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .join-container {
+    padding: 15px 25px;
+    border-radius: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .title {
+    font-size: 28px;
+    margin: 0 10px 0 0;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    margin: 0;
+  }
+
+  .join-form {
+    flex-direction: row;
+    gap: 10px;
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 300px;
+  }
+
+  .name-input {
+    padding: 10px 15px;
+    font-size: 14px;
+    flex: 1;
+  }
+
+  .join-button {
+    padding: 10px 20px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .info {
+    display: none;
+  }
+}
+

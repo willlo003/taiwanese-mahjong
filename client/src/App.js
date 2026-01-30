@@ -181,6 +181,14 @@ function App() {
     sendMessage({ type: 'ready', payload: {} });
   };
 
+  const handleRandomSeats = () => {
+    sendMessage({ type: 'random_seats', payload: {} });
+  };
+
+  const handleStartGame = () => {
+    sendMessage({ type: 'start_game', payload: {} });
+  };
+
   const handleDraw = () => {
     sendMessage({ type: 'action', payload: { type: 'draw' } });
   };
@@ -227,10 +235,12 @@ function App() {
       )}
 
       {isConnected && gameState === 'lobby' && (
-        <LobbyScreen 
-          players={players} 
+        <LobbyScreen
+          players={players}
           playerInfo={playerInfo}
           onReady={handleReady}
+          onRandomSeats={handleRandomSeats}
+          onStartGame={handleStartGame}
         />
       )}
 

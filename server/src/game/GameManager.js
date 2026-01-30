@@ -18,6 +18,12 @@ export class GameManager {
       case 'ready':
         this.handleReady(ws);
         break;
+      case 'random_seats':
+        this.handleRandomSeats(ws);
+        break;
+      case 'start_game':
+        this.handleStartGame(ws);
+        break;
       case 'action':
         this.handleAction(ws, payload);
         break;
@@ -82,11 +88,60 @@ export class GameManager {
 
     player.ready = true;
     this.broadcastPlayerList();
+    // Don't auto-start - wait for 東 player to click START
+  }
+
+  handleRandomSeats(ws) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    // Only allow if game hasn't started
+    if (this.game) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
+      return;
+    }
+
+    // Shuffle player positions randomly
+    const playerList = Array.from(this.players.values());
+    const positions = [0, 1, 2, 3]; // 東, 南, 西, 北
+
+    // Fisher-Yates shuffle
+    for (let i = positions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+
+    // Assign new positions (keep ready status unchanged)
+    playerList.forEach((p, index) => {
+      p.position = positions[index];
+    });
+
+    this.broadcastPlayerList();
+    console.log('Seats shuffled randomly');
+  }
+
+  handleStartGame(ws) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    // Only 東 (position 0) can start the game
+    if (player.position !== 0) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Only 東 player can start the game' }));
+      return;
+    }
 
     // Check if all players are ready
-    if (this.players.size === this.maxPlayers && this.allPlayersReady()) {
-      this.startGame();
+    if (this.players.size !== this.maxPlayers) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Need 4 players to start' }));
+      return;
     }
+
+    if (!this.allPlayersReady()) {
+      ws.send(JSON.stringify({ type: 'error', message: 'All players must be ready' }));
+      return;
+    }
+
+    this.startGame();
   }
 
   handleAction(ws, payload) {
