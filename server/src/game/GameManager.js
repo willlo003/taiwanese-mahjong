@@ -32,6 +32,17 @@ export class GameManager {
     }
   }
 
+  // Find the first available position (0-3)
+  getAvailablePosition() {
+    const takenPositions = new Set(Array.from(this.players.values()).map(p => p.position));
+    for (let i = 0; i < 4; i++) {
+      if (!takenPositions.has(i)) {
+        return i;
+      }
+    }
+    return -1; // No position available
+  }
+
   handleJoin(ws, payload) {
     const { name } = payload;
 
@@ -54,6 +65,13 @@ export class GameManager {
       return;
     }
 
+    // Find available position
+    const position = this.getAvailablePosition();
+    if (position === -1) {
+      ws.send(JSON.stringify({ type: 'error', message: 'No seats available' }));
+      return;
+    }
+
     // Add player
     const playerId = uuidv4();
     const player = {
@@ -61,7 +79,7 @@ export class GameManager {
       name: name.trim(),
       ws,
       ready: false,
-      position: this.players.size // 0: East, 1: South, 2: West, 3: North
+      position: position // Use first available position
     };
 
     this.players.set(ws, player);
@@ -79,7 +97,7 @@ export class GameManager {
     // Broadcast updated player list to all players
     this.broadcastPlayerList();
 
-    console.log(`Player joined: ${name} (${this.players.size}/${this.maxPlayers})`);
+    console.log(`Player joined: ${name} at position ${position} (${this.players.size}/${this.maxPlayers})`);
   }
 
   handleReady(ws) {

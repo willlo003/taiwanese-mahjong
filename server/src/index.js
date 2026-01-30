@@ -38,7 +38,14 @@ function getLocalIPAddress() {
 // WebSocket connection handler
 wss.on('connection', (ws) => {
   console.log('New client connected');
-  
+
+  // Mark connection as alive
+  ws.isAlive = true;
+
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
@@ -56,7 +63,26 @@ wss.on('connection', (ws) => {
 
   ws.on('error', (error) => {
     console.error('WebSocket error:', error);
+    gameManager.handleDisconnect(ws);
   });
+});
+
+// Heartbeat interval to detect dead connections
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      console.log('Terminating dead connection');
+      gameManager.handleDisconnect(ws);
+      return ws.terminate();
+    }
+
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 5000); // Check every 5 seconds
+
+wss.on('close', () => {
+  clearInterval(heartbeatInterval);
 });
 
 // Health check endpoint

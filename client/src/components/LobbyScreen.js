@@ -4,7 +4,8 @@ import './LobbyScreen.css';
 function LobbyScreen({ players, playerInfo, onReady, onRandomSeats, onStartGame }) {
   // Find the current player's ready status from the players list
   const currentPlayer = players.find(p => p.id === playerInfo?.playerId);
-  const isReady = currentPlayer?.ready || false;
+  // If player not found in list yet, they're definitely not ready
+  const isReady = currentPlayer ? currentPlayer.ready : false;
   const isEastPlayer = currentPlayer?.position === 0;
   const allReady = players.length === 4 && players.every(p => p.ready);
 

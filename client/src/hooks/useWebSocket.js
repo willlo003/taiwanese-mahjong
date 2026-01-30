@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 export function useWebSocket({ onMessage }) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+
+  // Use a ref to always have the latest onMessage callback
+  const onMessageRef = useRef(onMessage);
+
+  // Update the ref whenever onMessage changes
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   useEffect(() => {
     function connect() {
@@ -25,7 +33,8 @@ export function useWebSocket({ onMessage }) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          onMessage(data);
+          // Use the ref to always call the latest callback
+          onMessageRef.current(data);
         } catch (error) {
           console.error('Error parsing message:', error);
         }
@@ -59,7 +68,6 @@ export function useWebSocket({ onMessage }) {
         wsRef.current.close();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function sendMessage(message) {
