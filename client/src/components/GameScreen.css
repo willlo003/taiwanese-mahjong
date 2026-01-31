@@ -175,7 +175,7 @@
   display: flex;
   flex-direction: column;
   gap: 0px;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
   padding: 2px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
@@ -187,7 +187,7 @@
   display: flex;
   flex-direction: column;
   gap: 0px;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
   padding: 2px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
@@ -198,7 +198,7 @@
   display: flex;
   flex-direction: row;
   gap: 1px;
-  margin-right: 4px;
+  margin-right: 0px;
   padding: 2px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
@@ -209,7 +209,7 @@
   display: flex;
   flex-direction: row;
   gap: 1px;
-  margin-right: 4px;
+  margin-right: 0px;
   padding: 2px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
@@ -235,6 +235,8 @@
   box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
   padding: 3px;
   gap: 3px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (min-width: 1024px) {
@@ -249,9 +251,12 @@
 /* Center column (top discard, game info, bottom discard) */
 .center-column {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (min-width: 1024px) {
@@ -260,94 +265,98 @@
   }
 }
 
-/* Left discard area (上家) - tiles flow top to bottom, wrap to new column on LEFT */
-/* Left discard area (上家) - their left=top, right=bottom */
-/* Tiles flow top to bottom (their left to right), wrap to new column on LEFT (away from center) */
-/* Tiles positioned at RIGHT (close to center) and vertically CENTERED */
+/* Left discard area (上家) - perspective top-to-bottom */
+/* Tiles flow from top to bottom within each column */
+/* Columns order: right to left (newest column on left) */
 /* Tiles rotated 90° to be readable from left side */
 .discard-area-left {
   width: 166px;
-  padding: 0;
+  flex-shrink: 0;
+  padding: 2px;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .discard-area-left .discard-tiles-inner {
   display: flex;
   flex-direction: column;
-  flex-wrap: wrap;
-  gap: 2px;
+  flex-wrap: wrap-reverse;
+  column-gap: 12px;
   row-gap: 0px;
   align-content: flex-start;
-  justify-content: center;
-  overflow: visible;
+  justify-content: flex-start;
   height: 100%;
-  margin-left: 80%;
+  width: 90%;
 }
 
 .discard-area-left .tile {
   transform: rotate(90deg);
-  margin-top: -4px;
-  margin-bottom: -4px;
+  margin: -4px 0;
 }
 
-/* Right discard area (下家) - their left=bottom, right=top */
-/* Tiles flow bottom to top (their left to right), wrap to new column on RIGHT (away from center) */
-/* Tiles positioned at LEFT (close to center) and vertically CENTERED */
+/* Right discard area (下家) - perspective top-to-bottom */
+/* Tiles flow from bottom to top within each column */
+/* Columns order: left to right (newest column on right) */
 /* Tiles rotated -90° to be readable from right side */
 .discard-area-right {
   width: 166px;
-  padding: 0;
+  flex-shrink: 0;
+  padding: 2px;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-start;
 }
 
 .discard-area-right .discard-tiles-inner {
   display: flex;
   flex-direction: column-reverse;
-  flex-wrap: wrap-reverse;
-  gap: 2px;
+  flex-wrap: wrap;
+  column-gap: 12px;
   row-gap: 0px;
-  align-content: flex-end;
-  justify-content: center;
-  overflow: visible;
+  align-content: flex-start;
+  align-items: flex-start;
+  justify-content: flex-start;
   height: 100%;
-  margin-right: 80%;
+  width: 90%;
 }
 
 .discard-area-right .tile {
   transform: rotate(-90deg);
-  margin-top: -4px;
-  margin-bottom: -4px;
+  margin: -4px 0;
 }
 
 @media (min-width: 1024px) {
   .discard-area-left {
     width: 240px;
-    padding: 0;
+    padding: 3px;
   }
 
   .discard-area-left .discard-tiles-inner {
-    gap: 3px;
+    column-gap: 20px;
     row-gap: 0px;
+  }
+
+  .discard-area-left .tile {
+    margin: -8px 0;
   }
 
   .discard-area-right {
     width: 240px;
-    padding: 0;
+    padding: 3px;
   }
 
   .discard-area-right .discard-tiles-inner {
-    gap: 3px;
+    column-gap: 20px;
     row-gap: 0px;
   }
 
-  .discard-area-left .tile,
   .discard-area-right .tile {
-    margin-top: -5px;
-    margin-bottom: -5px;
+    margin: -8px 0;
   }
 }
 
@@ -365,6 +374,7 @@
   font-size: 10px;
   color: #fff;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 @media (min-width: 1024px) {
@@ -422,6 +432,7 @@
 /* Entire container rotated so tiles appear from opponent's perspective */
 .discard-area-top {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -445,6 +456,7 @@
 /* Tiles not rotated - readable from bottom (player's view) */
 .discard-area-bottom {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
