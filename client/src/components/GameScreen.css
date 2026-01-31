@@ -181,8 +181,31 @@
   border-radius: 3px;
 }
 
+/* Bonus tiles group for side players */
+.player-disk-left .bonus-tiles-group,
+.player-disk-right .bonus-tiles-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  margin-bottom: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
 /* Meld group for top player */
 .player-disk-top .meld-group {
+  display: flex;
+  flex-direction: row;
+  gap: 1px;
+  margin-right: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Bonus tiles group for top player */
+.player-disk-top .bonus-tiles-group {
   display: flex;
   flex-direction: row;
   gap: 1px;
@@ -644,12 +667,13 @@
   gap: 4px;
 }
 
-/* Top player disk - on the right of hand */
+/* Top player disk - on the right of hand, rotated 180deg to face 對家 */
 .player-disk-top {
   display: flex;
   flex-direction: row;
   gap: 1px;
   align-items: center;
+  transform: rotate(180deg);
 }
 
 /* Make disk tiles same size as tile-back for top player */
@@ -813,6 +837,16 @@
 
 /* Meld group - group tiles in a meld together */
 .meld-group {
+  display: flex;
+  gap: 1px;
+  margin-right: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Bonus tiles group - flowers/seasons grouped together, always first on left */
+.bonus-tiles-group {
   display: flex;
   gap: 1px;
   margin-right: 4px;

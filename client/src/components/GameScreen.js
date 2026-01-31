@@ -184,20 +184,24 @@ function GameScreen({
               <div key={idx} className="tile-back" />
             ))}
           </div>
-          {/* Player Disk - melds and bonus tiles */}
+          {/* Player Disk - bonus tiles first (left), then melds (right) */}
           {(playerBonusTiles.length > 0 || playerMelds.length > 0) && (
             <div className="player-disk player-disk-top">
-              {/* Melds */}
+              {/* Bonus tiles (flowers/seasons) - always first on left */}
+              {playerBonusTiles.length > 0 && (
+                <div className="bonus-tiles-group">
+                  {playerBonusTiles.map((tile, idx) => (
+                    <Tile key={`bonus-${idx}`} tile={tile} />
+                  ))}
+                </div>
+              )}
+              {/* Melds - added to right in order claimed */}
               {playerMelds.map((meld, meldIdx) => (
                 <div key={`meld-${meldIdx}`} className="meld-group">
                   {meld.tiles.map((tile, tileIdx) => (
                     <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
                   ))}
                 </div>
-              ))}
-              {/* Bonus tiles */}
-              {playerBonusTiles.map((tile, idx) => (
-                <Tile key={`bonus-${idx}`} tile={tile} />
               ))}
             </div>
           )}
@@ -220,20 +224,48 @@ function GameScreen({
 
     // For left player: disk on right (closer to center), hand on left (closer to edge)
     // For right player: disk on left (closer to center), hand on right (closer to edge)
+    // Disk order: bonus tiles (flowers/seasons) at perspective left, then melds at perspective right
+    // Left player: perspective left = top, so bonus tiles first (top), melds after (bottom)
+    // Right player: perspective left = bottom, so melds first (top), bonus tiles after (bottom)
     const diskColumn = (
       <div className={`player-disk player-disk-${position}`}>
-        {/* Melds */}
-        {playerMelds.map((meld, meldIdx) => (
-          <div key={`meld-${meldIdx}`} className="meld-group">
-            {meld.tiles.map((tile, tileIdx) => (
-              <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
+        {position === 'left' ? (
+          <>
+            {/* Left player: bonus tiles at top (perspective left), melds at bottom */}
+            {playerBonusTiles.length > 0 && (
+              <div className="bonus-tiles-group">
+                {playerBonusTiles.map((tile, idx) => (
+                  <Tile key={`bonus-${idx}`} tile={tile} />
+                ))}
+              </div>
+            )}
+            {playerMelds.map((meld, meldIdx) => (
+              <div key={`meld-${meldIdx}`} className="meld-group">
+                {meld.tiles.map((tile, tileIdx) => (
+                  <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
+                ))}
+              </div>
             ))}
-          </div>
-        ))}
-        {/* Bonus tiles */}
-        {playerBonusTiles.map((tile, idx) => (
-          <Tile key={`bonus-${idx}`} tile={tile} />
-        ))}
+          </>
+        ) : (
+          <>
+            {/* Right player: melds at top, bonus tiles at bottom (perspective left) */}
+            {playerMelds.map((meld, meldIdx) => (
+              <div key={`meld-${meldIdx}`} className="meld-group">
+                {meld.tiles.map((tile, tileIdx) => (
+                  <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
+                ))}
+              </div>
+            ))}
+            {playerBonusTiles.length > 0 && (
+              <div className="bonus-tiles-group">
+                {playerBonusTiles.map((tile, idx) => (
+                  <Tile key={`bonus-${idx}`} tile={tile} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
 
@@ -357,20 +389,24 @@ function GameScreen({
           const myMelds = melds[playerInfo?.playerId] || [];
           return (
             <div className={`player-hand player-hand-bottom ${isMyActive ? 'current-turn' : ''} ${isMyFlowerReplacement ? 'flower-replacement' : ''}`}>
-              {/* Revealed Melds and Bonus Tiles - shown on the left */}
+              {/* Revealed Bonus Tiles and Melds - bonus tiles first (left), then melds (right) */}
               {(myBonusTiles.length > 0 || myMelds.length > 0) && (
                 <div className="revealed-bonus-tiles">
-                  {/* Melds */}
+                  {/* Bonus tiles (flowers/seasons) - always first on left */}
+                  {myBonusTiles.length > 0 && (
+                    <div className="bonus-tiles-group">
+                      {myBonusTiles.map((tile, idx) => (
+                        <Tile key={`bonus-${idx}`} tile={tile} size="small" />
+                      ))}
+                    </div>
+                  )}
+                  {/* Melds - added to right in order claimed */}
                   {myMelds.map((meld, meldIdx) => (
                     <div key={`meld-${meldIdx}`} className="meld-group">
                       {meld.tiles.map((tile, tileIdx) => (
                         <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} size="small" />
                       ))}
                     </div>
-                  ))}
-                  {/* Bonus tiles */}
-                  {myBonusTiles.map((tile, idx) => (
-                    <Tile key={`bonus-${idx}`} tile={tile} size="small" />
                   ))}
                 </div>
               )}
