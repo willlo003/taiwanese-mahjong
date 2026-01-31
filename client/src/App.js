@@ -21,6 +21,7 @@ function App() {
   const [playerWinds, setPlayerWinds] = useState({});
   const [revealedBonusTiles, setRevealedBonusTiles] = useState({});
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [drawnTile, setDrawnTile] = useState(null); // Track the newly drawn tile
   const [playerHandSizes, setPlayerHandSizes] = useState({}); // Track hand sizes for all players
   const [currentRound, setCurrentRound] = useState('east'); // 圈: east/south/west/north
   const [currentWind, setCurrentWind] = useState('east');   // 風: east/south/west/north
@@ -71,6 +72,7 @@ function App() {
         console.log('[CLIENT] Received hand_update, new hand size:', data.payload.hand.length);
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
+        setDrawnTile(null); // Clear drawn tile on hand update
         if (data.payload.revealedBonusTiles && playerInfo?.playerId) {
           setRevealedBonusTiles(prev => ({
             ...prev,
@@ -90,6 +92,7 @@ function App() {
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
+        setDrawnTile(data.payload.tile); // Track the drawn tile
         soundManager.tileDraw();
         break;
 
@@ -110,6 +113,7 @@ function App() {
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
+        setDrawnTile(data.payload.finalTile || data.payload.tile); // Track the final drawn tile after replacement
         if (data.payload.revealedBonusTiles && playerInfo?.playerId) {
           setRevealedBonusTiles(prev => ({
             ...prev,
@@ -193,6 +197,7 @@ function App() {
       case 'turn_changed':
         setCurrentPlayer(data.payload.currentPlayer);
         setHasDrawn(false); // Reset draw state when turn changes
+        setDrawnTile(null); // Clear drawn tile when turn changes
         if (data.payload.currentPlayer === playerInfo?.playerId) {
           soundManager.yourTurn();
         }
@@ -306,6 +311,7 @@ function App() {
 
   const handleDiscard = (tile) => {
     sendMessage({ type: 'action', payload: { type: 'discard', tile } });
+    setDrawnTile(null); // Clear drawn tile after discarding
     soundManager.tileClick();
   };
 
@@ -407,6 +413,7 @@ function App() {
             playerWinds={playerWinds}
             revealedBonusTiles={revealedBonusTiles}
             hasDrawn={hasDrawn}
+            drawnTile={drawnTile}
             playerHandSizes={playerHandSizes}
             currentRound={currentRound}
             currentWind={currentWind}

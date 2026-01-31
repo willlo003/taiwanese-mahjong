@@ -20,6 +20,7 @@ function GameScreen({
   playerWinds = {},
   revealedBonusTiles = {},
   hasDrawn = false,
+  drawnTile = null,
   playerHandSizes = {},
   currentRound = 'east',
   currentWind = 'east',
@@ -107,17 +108,39 @@ function GameScreen({
     }
   };
 
-  // Sort hand by suit and value
-  const sortedHand = [...hand].sort((a, b) => {
-    const suitOrder = { bamboo: 0, character: 1, dot: 2, wind: 3, dragon: 4, flower: 5, season: 6 };
-    if (suitOrder[a.suit] !== suitOrder[b.suit]) {
-      return suitOrder[a.suit] - suitOrder[b.suit];
-    }
-    if (typeof a.value === 'number' && typeof b.value === 'number') {
-      return a.value - b.value;
-    }
-    return 0;
-  });
+  // Sort hand by suit and value, excluding the drawn tile
+  // Order: 1-9 sou (bamboo) > 1-9 man (character) > 1-9 pin (dot) > 東南西北 (wind) > 中發白 (dragon)
+  const sortHand = (tiles) => {
+    return [...tiles].sort((a, b) => {
+      const suitOrder = { bamboo: 0, character: 1, dot: 2, wind: 3, dragon: 4, flower: 5, season: 6 };
+      if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+        return suitOrder[a.suit] - suitOrder[b.suit];
+      }
+      // For numbered tiles (bamboo, character, dot), sort by value 1-9
+      if (typeof a.value === 'number' && typeof b.value === 'number') {
+        return a.value - b.value;
+      }
+      // For wind tiles, sort by 東南西北 order
+      if (a.suit === 'wind' && b.suit === 'wind') {
+        const windOrder = { east: 0, south: 1, west: 2, north: 3 };
+        return (windOrder[a.value] ?? 99) - (windOrder[b.value] ?? 99);
+      }
+      // For dragon tiles, sort by 中發白 order
+      if (a.suit === 'dragon' && b.suit === 'dragon') {
+        const dragonOrder = { red: 0, green: 1, white: 2 };
+        return (dragonOrder[a.value] ?? 99) - (dragonOrder[b.value] ?? 99);
+      }
+      return 0;
+    });
+  };
+
+  // Separate the drawn tile from the rest of the hand
+  // Only show drawn tile separately if it exists in the hand
+  const drawnTileInHand = drawnTile ? hand.find(tile => tile.id === drawnTile.id) : null;
+  const handWithoutDrawn = drawnTileInHand
+    ? hand.filter(tile => tile.id !== drawnTile.id)
+    : hand;
+  const sortedHand = sortHand(handWithoutDrawn);
 
   // Get my position (seat)
   const myPosition = players.find(p => p.id === playerInfo?.playerId)?.position ?? 0;
@@ -361,6 +384,18 @@ function GameScreen({
                     disabled={!canSelectTiles}
                   />
                 ))}
+                {/* Drawn tile shown separately with a gap */}
+                {drawnTileInHand && (
+                  <div className="drawn-tile-separator">
+                    <Tile
+                      key={drawnTileInHand.id}
+                      tile={drawnTileInHand}
+                      selected={selectedTile?.id === drawnTileInHand.id}
+                      onClick={() => handleTileClick(drawnTileInHand)}
+                      disabled={!canSelectTiles}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -506,7 +541,6 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
     <div className="claim-popup-overlay">
       <div className="claim-popup">
         <div className="claim-popup-header">
-          <span className="claim-popup-title">可以吃牌!</span>
           <span className="claim-popup-timer">{timeLeft}s</span>
         </div>
 
@@ -537,7 +571,7 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
 
         {/* Pass button */}
         <button className="claim-pass-btn" onClick={handlePassClick}>
-          不吃
+          唔要
         </button>
 
         {(pendingClaim || selectedClaim) && (

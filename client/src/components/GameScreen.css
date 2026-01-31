@@ -729,13 +729,14 @@
 }
 
 .tile-back {
-  width: 18px;
-  height: 26px;
+  width: 20px;
+  height: 29px;
   background: linear-gradient(135deg, #2c5f2d 0%, #97c93d 100%);
-  border-radius: 2px;
+  border-radius: 4px !important;
   border: 1px solid #1e4620;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   position: relative;
+  overflow: hidden;
 }
 
 .tile-back::after {
@@ -750,11 +751,12 @@
 
 @media (min-width: 1024px) {
   .tile-back {
-    width: 28px;
-    height: 38px;
-    border-radius: 3px;
+    width: 30px;
+    height: 43px;
+    border-radius: 4px !important;
     border: 2px solid #1e4620;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
   }
 
   .tile-back::after {
@@ -765,12 +767,12 @@
 /* Left/Right player tile rotations - MUST be after .tile-back base styles */
 .player-tiles-left > .tile-back {
   transform: rotate(90deg);
-  margin: -3px 0;
+  margin: -5px 0;
 }
 
 .player-tiles-right > .tile-back {
   transform: rotate(-90deg);
-  margin: -3px 0;
+  margin: -5px 0;
 }
 
 
@@ -832,6 +834,19 @@
   justify-content: center;
   align-items: center;
   overflow: visible;
+}
+
+/* Drawn tile separator - shows the newly drawn tile with a gap */
+.drawn-tile-separator {
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .drawn-tile-separator {
+    margin-left: 16px;
+  }
 }
 
 /* Player Actions - Single row layout */
