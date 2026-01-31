@@ -258,9 +258,11 @@ function GameScreen({
           {/* Left Discard (上家) */}
           <div className="discard-area discard-area-left">
             <span className="discard-area-label">{leftPlayer?.name} ({windToChinese(playerWinds[leftPlayer?.id])}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-            {(discardPiles[leftPlayer?.id] || []).map((tile, idx) => (
-              <Tile key={idx} tile={tile} size="small" />
-            ))}
+            <div className="discard-tiles-inner">
+              {(discardPiles[leftPlayer?.id] || []).map((tile, idx) => (
+                <Tile key={idx} tile={tile} size="small" />
+              ))}
+            </div>
           </div>
 
           {/* Center Column: Top Discard, Game Info, Bottom Discard */}
@@ -268,9 +270,11 @@ function GameScreen({
             {/* Top Discard (對家) */}
             <div className="discard-area discard-area-top">
               <span className="discard-area-label">{topPlayer?.name} ({windToChinese(playerWinds[topPlayer?.id])}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-              {(discardPiles[topPlayer?.id] || []).map((tile, idx) => (
-                <Tile key={idx} tile={tile} size="small" />
-              ))}
+              <div className="discard-tiles-inner">
+                {(discardPiles[topPlayer?.id] || []).map((tile, idx) => (
+                  <Tile key={idx} tile={tile} size="small" />
+                ))}
+              </div>
             </div>
 
             {/* Game Info */}
@@ -310,9 +314,11 @@ function GameScreen({
           {/* Right Discard (下家) */}
           <div className="discard-area discard-area-right">
             <span className="discard-area-label">{rightPlayer?.name} ({windToChinese(playerWinds[rightPlayer?.id])}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-            {(discardPiles[rightPlayer?.id] || []).map((tile, idx) => (
-              <Tile key={idx} tile={tile} size="small" />
-            ))}
+            <div className="discard-tiles-inner">
+              {(discardPiles[rightPlayer?.id] || []).map((tile, idx) => (
+                <Tile key={idx} tile={tile} size="small" />
+              ))}
+            </div>
           </div>
         </div>
 

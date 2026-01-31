@@ -22,8 +22,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.5), /* Top highlight */
     inset 0 -1px 0 rgba(0, 0, 0, 0.1);       /* Bottom shadow */
 
-  /* Add padding to create space between block and image */
-  padding: 4px;
+  /* No padding - image fills the tile */
+  padding: 0;
 }
 
 .tile-image {

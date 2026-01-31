@@ -238,49 +238,60 @@
 }
 
 /* Left discard area (上家) - tiles flow top to bottom, wrap to new column on LEFT */
+/* Left discard area (上家) - their left=top, right=bottom */
+/* Tiles flow top to bottom (their left to right), wrap to new column on LEFT (away from center) */
+/* Tiles positioned at RIGHT (close to center) and vertically CENTERED */
 /* Tiles rotated 90° to be readable from left side */
-/* Start from top-right corner, flow down, wrap left */
-/* Use same layout as right but flip horizontally */
 .discard-area-left {
   width: 166px;
-  display: flex;
-  flex-direction: column-reverse;
-  flex-wrap: wrap;
-  gap: 2px;
-  row-gap: 0px;
-  padding: 7px 8px 7px 3px;
+  padding: 0;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.discard-area-left .discard-tiles-inner {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 2px;
+  row-gap: 0px;
   align-content: flex-start;
-  justify-content: flex-start;
-  overflow: hidden;
-  transform: scaleX(-1);
+  justify-content: center;
+  overflow: visible;
+  height: 100%;
+  margin-left: 80%;
 }
 
 .discard-area-left .tile {
-  transform: scaleX(-1) rotate(90deg);
+  transform: rotate(90deg);
   margin-top: -4px;
   margin-bottom: -4px;
 }
 
-/* Right discard area (下家) - tiles flow bottom to top, wrap to new column on RIGHT */
+/* Right discard area (下家) - their left=bottom, right=top */
+/* Tiles flow bottom to top (their left to right), wrap to new column on RIGHT (away from center) */
+/* Tiles positioned at LEFT (close to center) and vertically CENTERED */
 /* Tiles rotated -90° to be readable from right side */
-/* Start from bottom-left corner, flow up, wrap right */
 .discard-area-right {
   width: 166px;
-  display: flex;
-  flex-direction: column-reverse;
-  flex-wrap: wrap;
-  gap: 2px;
-  row-gap: 0px;
-  padding: 7px 3px 7px 8px;
+  padding: 0;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  align-content: flex-start;
-  justify-content: flex-start;
-  overflow: hidden;
+}
+
+.discard-area-right .discard-tiles-inner {
+  display: flex;
+  flex-direction: column-reverse;
+  flex-wrap: wrap-reverse;
+  gap: 2px;
+  row-gap: 0px;
+  align-content: flex-end;
+  justify-content: center;
+  overflow: visible;
+  height: 100%;
+  margin-right: 80%;
 }
 
 .discard-area-right .tile {
@@ -292,16 +303,22 @@
 @media (min-width: 1024px) {
   .discard-area-left {
     width: 240px;
+    padding: 0;
+  }
+
+  .discard-area-left .discard-tiles-inner {
     gap: 3px;
     row-gap: 0px;
-    padding: 9px 10px 9px 4px;
   }
 
   .discard-area-right {
     width: 240px;
+    padding: 0;
+  }
+
+  .discard-area-right .discard-tiles-inner {
     gap: 3px;
     row-gap: 0px;
-    padding: 9px 4px 9px 10px;
   }
 
   .discard-area-left .tile,
@@ -378,31 +395,30 @@
   100% { content: ''; }
 }
 
-/* Top Discard Area (對家) - tiles flow right to left, wrap to new row ABOVE */
-/* Tiles rotated 180° to be readable from top (opponent's view) */
-/* Start from bottom-right corner, flow left, wrap up */
-/* Use same layout as bottom but flip both axes (180 degree rotation) */
+/* Top Discard Area (對家) - same as bottom but rotated 180° */
+/* Entire container rotated so tiles appear from opponent's perspective */
 .discard-area-top {
   flex: 1;
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 3px;
+  padding: 0;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   align-content: flex-start;
-  justify-content: flex-start;
+  justify-content: center;
   overflow: hidden;
-  transform: scale(-1);
+  transform: rotate(180deg);
 }
 
-.discard-area-top .tile {
-  transform: scale(-1);
+.discard-area-top .discard-tiles-inner {
+  display: contents;
 }
 
 /* Bottom Discard Area (自己/own) - tiles flow left to right, wrap to new row BELOW */
+/* Tiles positioned at TOP (close to center) and horizontally CENTERED */
 /* Tiles not rotated - readable from bottom (player's view) */
 .discard-area-bottom {
   flex: 1;
@@ -410,12 +426,12 @@
   flex-direction: row;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 3px;
+  padding: 0;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   align-content: flex-start;
-  justify-content: flex-start;
+  justify-content: center;
   overflow: hidden;
 }
 
@@ -423,7 +439,7 @@
   .discard-area-top,
   .discard-area-bottom {
     gap: 3px;
-    padding: 6px;
+    padding: 0;
   }
 }
 
