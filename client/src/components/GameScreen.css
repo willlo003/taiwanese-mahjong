@@ -963,6 +963,14 @@
   background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
 }
 
+.action-btn-leave {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+
+.action-btn-leave:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+}
+
 /* Pending claim button - pulsing animation */
 .action-btn-pending {
   background: linear-gradient(135deg, #f5af19 0%, #f12711 100%);
@@ -1237,5 +1245,79 @@
 
 .claim-tiles-preview .tile {
   transform: scale(0.9);
+}
+
+/* Leave Confirmation Popup */
+.leave-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.leave-confirm-popup {
+  background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 280px;
+  max-width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.leave-confirm-message {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.leave-confirm-warning {
+  font-size: 14px;
+  color: #f39c12;
+  margin-bottom: 24px;
+}
+
+.leave-confirm-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.leave-confirm-btn {
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.leave-confirm-cancel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.leave-confirm-cancel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.leave-confirm-yes {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+}
+
+.leave-confirm-yes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
 }
 

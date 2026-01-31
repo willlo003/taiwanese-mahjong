@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function useWebSocket({ onMessage }) {
   const [isConnected, setIsConnected] = useState(false);

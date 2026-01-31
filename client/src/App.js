@@ -3,6 +3,7 @@ import './App.css';
 import JoinScreen from './components/JoinScreen';
 import LobbyScreen from './components/LobbyScreen';
 import GameScreen from './components/GameScreen';
+import { ToastContainer, showToast } from './components/Toast';
 // ClaimDialog removed - claim actions are now handled via action buttons directly
 import { useWebSocket } from './hooks/useWebSocket';
 import { soundManager } from './utils/sounds';
@@ -29,7 +30,7 @@ function App() {
   const [flowerReplacementPlayer, setFlowerReplacementPlayer] = useState(null); // Who is currently doing 補花
   const [claimPeriodActive, setClaimPeriodActive] = useState(false); // Whether claim period is active
   const [lastDiscardedTile, setLastDiscardedTile] = useState(null); // The last discarded tile
-  const [lastDiscardedBy, setLastDiscardedBy] = useState(null); // Who discarded the last tile
+  const [, setLastDiscardedBy] = useState(null); // Who discarded the last tile (setter only, value used for future features)
   const [pendingClaim, setPendingClaim] = useState(null); // The claim the player has registered
 
   const { sendMessage, isConnected } = useWebSocket({
@@ -268,7 +269,7 @@ function App() {
         if (data.type === 'chow_claimed') soundManager.chow();
         break;
 
-      case 'game_ended':
+      case 'game_ended': {
         const winMessage = data.payload.winner
           ? `${data.payload.winnerName} wins with ${data.payload.pattern}! Score: ${data.payload.score}`
           : `Game ended: ${data.payload.reason}`;
@@ -277,14 +278,38 @@ function App() {
           soundManager.win();
         }
 
+        // Reset game state
+        setHand([]);
+        setDrawnTile(null);
+        setDiscardPiles({});
+        setMelds({});
+        setRevealedBonusTiles({});
+        setCurrentPlayer(null);
+        setDealerIndex(0);
+        setTilesRemaining(144);
+        setPlayerHandSizes({});
+        setCurrentRound('east');
+        setCurrentWind('east');
+        setGamePhase('waiting');
+        setFlowerReplacementPlayer(null);
+        setClaimPeriodActive(false);
+        setLastDiscardedTile(null);
+        setLastDiscardedBy(null);
+        setPendingClaim(null);
+        setClaimOptions(null);
+        setPlayerWinds({});
+        setHasDrawn(false);
+
         setTimeout(() => {
-          alert(winMessage);
+          showToast(winMessage, data.payload.winner ? 'success' : 'info');
+          // All players go back to lobby with cleared seats
           setGameState('lobby');
         }, 500);
         break;
+      }
 
       case 'error':
-        alert(data.message);
+        showToast(data.message, 'error');
         soundManager.error();
         break;
 
@@ -297,12 +322,12 @@ function App() {
     sendMessage({ type: 'join', payload: { name } });
   };
 
-  const handleReady = () => {
-    sendMessage({ type: 'ready', payload: {} });
-  };
-
   const handleRandomSeats = () => {
     sendMessage({ type: 'random_seats', payload: {} });
+  };
+
+  const handleSelectSeat = (position) => {
+    sendMessage({ type: 'select_seat', payload: { position } });
   };
 
   const handleStartGame = () => {
@@ -370,6 +395,10 @@ function App() {
     setPendingClaim(null);
   };
 
+  const handleLeaveGame = () => {
+    sendMessage({ type: 'leave_game', payload: {} });
+  };
+
   return (
     <div className="App">
       {!isConnected && (
@@ -387,8 +416,8 @@ function App() {
         <LobbyScreen
           players={players}
           playerInfo={playerInfo}
-          onReady={handleReady}
           onRandomSeats={handleRandomSeats}
+          onSelectSeat={handleSelectSeat}
           onStartGame={handleStartGame}
         />
       )}
@@ -426,11 +455,13 @@ function App() {
             onClaimClose={handleSkipClaim}
             onPass={handlePass}
             onCancelClaim={handleCancelClaim}
+            onLeaveGame={handleLeaveGame}
           />
 
 
         </>
       )}
+      <ToastContainer />
     </div>
   );
 }

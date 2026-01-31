@@ -31,6 +31,18 @@
   margin-bottom: 15px;
 }
 
+.unseated-info {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ff9800;
+  padding: 12px;
+  background: rgba(255, 152, 0, 0.1);
+  border-radius: 10px;
+  margin-bottom: 15px;
+  border: 2px dashed #ff9800;
+}
+
 .random-button {
   display: block;
   width: 100%;
@@ -71,6 +83,20 @@
   transition: all 0.3s;
 }
 
+.player-slot.clickable {
+  cursor: pointer;
+}
+
+.player-slot.clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.player-slot.empty.clickable:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+}
+
 .player-slot.filled {
   background: white;
   border-color: #2a5298;
@@ -81,8 +107,25 @@
   box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
 }
 
+.player-slot.you:hover {
+  border-color: #e74c3c;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.3);
+}
+
 .player-slot.empty {
   border: 3px dashed #ddd;
+}
+
+.leave-seat-hint {
+  font-size: 11px;
+  color: #e74c3c;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.player-slot.you:hover .leave-seat-hint {
+  opacity: 1;
 }
 
 .position-label {
@@ -217,10 +260,21 @@
     margin-bottom: 5px;
   }
 
+  .unseated-info {
+    font-size: 12px;
+    padding: 6px;
+    margin-bottom: 8px;
+  }
+
   .random-button {
     padding: 6px 12px;
     font-size: 12px;
     margin-bottom: 8px;
+  }
+
+  .leave-seat-hint {
+    font-size: 9px;
+    margin-top: 4px;
   }
 
   .players-grid {

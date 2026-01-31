@@ -32,8 +32,10 @@ function GameScreen({
   lastDiscardedTile = null,
   onClaimClose = null,
   onPass = null,
-  onCancelClaim = null
+  onCancelClaim = null,
+  onLeaveGame = null
 }) {
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   // Helper to convert wind/round to Chinese
   const windToChinese = (wind) => {
     const map = { east: '東', south: '南', west: '西', north: '北' };
@@ -53,7 +55,6 @@ function GameScreen({
   const [selectedTile, setSelectedTile] = useState(null);
 
   const isMyTurn = currentPlayer === playerInfo?.playerId;
-  const currentPlayerName = players.find(p => p.id === currentPlayer)?.name || '';
 
   // Get dealer player
   const dealerPlayer = players[dealerIndex];
@@ -99,12 +100,6 @@ function GameScreen({
     if (canDiscard) {
       onDiscard(selectedTile);
       setSelectedTile(null);
-    }
-  };
-
-  const handleHu = () => {
-    if (isMyTurn) {
-      onHu();
     }
   };
 
@@ -442,9 +437,25 @@ function GameScreen({
           <div className="player-actions">
             <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>打牌</button>
             <button className="action-btn" disabled>聽</button>
+            <button className="action-btn action-btn-hu" onClick={onHu} disabled>食</button>
+            <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
           </div>
         </div>
       </div>
+
+      {/* Leave Confirmation Popup */}
+      {showLeaveConfirm && (
+        <div className="leave-confirm-overlay">
+          <div className="leave-confirm-popup">
+            <div className="leave-confirm-message">確定要離開遊戲嗎？</div>
+            <div className="leave-confirm-warning">離開後遊戲將結束，所有玩家將返回大廳。</div>
+            <div className="leave-confirm-buttons">
+              <button className="leave-confirm-btn leave-confirm-cancel" onClick={() => setShowLeaveConfirm(false)}>取消</button>
+              <button className="leave-confirm-btn leave-confirm-yes" onClick={() => { setShowLeaveConfirm(false); onLeaveGame && onLeaveGame(); }}>確定離開</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Claim Popup - shown during freeze period when player has claim options */}
       {claimPeriodActive && claimOptions && (

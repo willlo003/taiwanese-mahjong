@@ -15,14 +15,17 @@ export class GameManager {
       case 'join':
         this.handleJoin(ws, payload);
         break;
-      case 'ready':
-        this.handleReady(ws);
-        break;
       case 'random_seats':
         this.handleRandomSeats(ws);
         break;
       case 'start_game':
         this.handleStartGame(ws);
+        break;
+      case 'leave_game':
+        this.handleLeaveGame(ws);
+        break;
+      case 'select_seat':
+        this.handleSelectSeat(ws, payload);
         break;
       case 'action':
         this.handleAction(ws, payload);
@@ -65,21 +68,14 @@ export class GameManager {
       return;
     }
 
-    // Find available position
-    const position = this.getAvailablePosition();
-    if (position === -1) {
-      ws.send(JSON.stringify({ type: 'error', message: 'No seats available' }));
-      return;
-    }
-
-    // Add player
+    // Add player without assigning a seat (position = null)
     const playerId = uuidv4();
     const player = {
       id: playerId,
       name: name.trim(),
       ws,
       ready: false,
-      position: position // Use first available position
+      position: null // No seat assigned initially
     };
 
     this.players.set(ws, player);
@@ -97,16 +93,57 @@ export class GameManager {
     // Broadcast updated player list to all players
     this.broadcastPlayerList();
 
-    console.log(`Player joined: ${name} at position ${position} (${this.players.size}/${this.maxPlayers})`);
+    console.log(`Player joined: ${name} (${this.players.size}/${this.maxPlayers})`);
   }
 
-  handleReady(ws) {
+  handleSelectSeat(ws, payload) {
     const player = this.players.get(ws);
-    if (!player) return;
+    if (!player) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Player not found. Please refresh the page.' }));
+      return;
+    }
 
-    player.ready = true;
+    // Only allow if game hasn't started
+    if (this.game) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
+      return;
+    }
+
+    // Handle missing payload
+    if (!payload) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid request' }));
+      return;
+    }
+
+    const position = payload.position;
+
+    // If position is null, player is leaving their seat
+    if (position === null || position === undefined) {
+      player.position = null;
+      player.ready = false; // Reset ready status when leaving seat
+      this.broadcastPlayerList();
+      console.log(`Player ${player.name} left their seat`);
+      return;
+    }
+
+    // Validate position
+    if (position < 0 || position > 3) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid seat position' }));
+      return;
+    }
+
+    // Check if seat is already taken by another player
+    const seatTaken = Array.from(this.players.values()).some(p => p.position === position && p.id !== player.id);
+    if (seatTaken) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Seat is already taken' }));
+      return;
+    }
+
+    // Assign the seat - selecting a seat means ready
+    player.position = position;
+    player.ready = true; // Auto-ready when selecting seat
     this.broadcastPlayerList();
-    // Don't auto-start - wait for 東 player to click START
+    console.log(`Player ${player.name} selected seat ${position} and is ready`);
   }
 
   handleRandomSeats(ws) {
@@ -129,9 +166,10 @@ export class GameManager {
       [positions[i], positions[j]] = [positions[j], positions[i]];
     }
 
-    // Assign new positions (keep ready status unchanged)
+    // Assign new positions and set ready (selecting seat = ready)
     playerList.forEach((p, index) => {
       p.position = positions[index];
+      p.ready = true;
     });
 
     this.broadcastPlayerList();
@@ -148,14 +186,9 @@ export class GameManager {
       return;
     }
 
-    // Check if all players are ready
-    if (this.players.size !== this.maxPlayers) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Need 4 players to start' }));
-      return;
-    }
-
+    // Check if all 4 seats are filled and ready
     if (!this.allPlayersReady()) {
-      ws.send(JSON.stringify({ type: 'error', message: 'All players must be ready' }));
+      ws.send(JSON.stringify({ type: 'error', message: 'Need 4 seated players to start' }));
       return;
     }
 
@@ -173,20 +206,66 @@ export class GameManager {
     const player = this.players.get(ws);
     if (player) {
       console.log(`Player disconnected: ${player.name}`);
+      const disconnectedPlayerName = player.name;
       this.players.delete(ws);
-      
+
       // Reset game if a player disconnects
       if (this.game) {
         this.game = null;
-        this.broadcast({ type: 'game_ended', payload: { reason: 'Player disconnected' } });
+
+        // Reset all remaining players' seats and ready status
+        this.players.forEach((p) => {
+          p.position = null;
+          p.ready = false;
+        });
+
+        this.broadcast({
+          type: 'game_ended',
+          payload: {
+            reason: `${disconnectedPlayerName} disconnected`,
+            resetToLobby: true
+          }
+        });
       }
 
       this.broadcastPlayerList();
     }
   }
 
+  handleLeaveGame(ws) {
+    const player = this.players.get(ws);
+    if (player) {
+      console.log(`Player left game: ${player.name}`);
+      const leavingPlayerName = player.name;
+
+      // End the game
+      this.game = null;
+
+      // Reset ALL players' seats and ready status (including the leaving player)
+      this.players.forEach((p) => {
+        p.position = null;
+        p.ready = false;
+      });
+
+      // Notify all players (including the leaving player) that game ended
+      this.broadcast({
+        type: 'game_ended',
+        payload: {
+          reason: `${leavingPlayerName} left the game`,
+          resetToLobby: true
+        }
+      });
+
+      // Broadcast updated player list (with reset seats)
+      this.broadcastPlayerList();
+    }
+  }
+
   allPlayersReady() {
-    return Array.from(this.players.values()).every(p => p.ready);
+    const playerList = Array.from(this.players.values());
+    // Need exactly 4 players, all with seats (position 0-3), all ready
+    const seatedPlayers = playerList.filter(p => p.position !== null && p.position !== undefined);
+    return seatedPlayers.length === 4 && seatedPlayers.every(p => p.ready);
   }
 
   startGame() {
