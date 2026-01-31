@@ -2,6 +2,9 @@ import React from 'react';
 import './Tile.css';
 
 function Tile({ tile, selected, onClick, disabled, size = 'normal' }) {
+  // Return null if tile is undefined or null
+  if (!tile) return null;
+
   const getTileImagePath = () => {
     // Map our tile format to the image filenames
     if (tile.suit === 'bamboo') {

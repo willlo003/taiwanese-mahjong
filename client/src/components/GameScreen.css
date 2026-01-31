@@ -78,6 +78,120 @@
   grid-area: right-area;
 }
 
+/* Side player tiles container - two columns layout */
+.side-player-tiles-container {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+}
+
+/* Player Disk for side players */
+.player-disk {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  align-items: center;
+  justify-content: flex-start; /* Align disk to top */
+  position: relative;
+  z-index: 10; /* Ensure disk appears above hand tiles */
+}
+
+/* Player tiles column - left player hand aligns to bottom */
+.side-player-tiles-container .player-tiles-left {
+  justify-content: flex-end; /* Align hand to bottom */
+  position: relative;
+  z-index: 1; /* Lower than disk so disk appears above */
+}
+
+/* Player tiles column - right player hand aligns to top */
+.side-player-tiles-container .player-tiles-right {
+  justify-content: flex-start; /* Align hand to top */
+  position: relative;
+  z-index: 1; /* Lower than disk so disk appears above */
+}
+
+/* Right player disk aligns to bottom */
+.player-disk-right {
+  justify-content: flex-end !important;
+}
+
+/* Make disk tiles same size as tile-back for side players */
+.player-disk-left .tile,
+.player-disk-right .tile,
+.player-disk-left .tile.normal,
+.player-disk-right .tile.normal {
+  width: 18px !important;
+  height: 26px !important;
+  min-width: 18px !important;
+  min-height: 26px !important;
+  max-width: 18px !important;
+  max-height: 26px !important;
+  padding: 1px !important;
+  border-width: 1px !important;
+  box-sizing: border-box !important;
+}
+
+.player-disk-left .tile .tile-image,
+.player-disk-right .tile .tile-image {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (min-width: 1024px) {
+  .player-disk-left .tile,
+  .player-disk-right .tile,
+  .player-disk-left .tile.normal,
+  .player-disk-right .tile.normal {
+    width: 28px !important;
+    height: 38px !important;
+    min-width: 28px !important;
+    min-height: 38px !important;
+    max-width: 28px !important;
+    max-height: 38px !important;
+    padding: 2px !important;
+    border-width: 1px !important;
+  }
+}
+
+/* Rotate tiles in left player disk to match hand orientation */
+.player-disk-left .tile {
+  transform: rotate(90deg);
+  margin: -3px 0;
+}
+
+/* Rotate tiles in right player disk to match hand orientation */
+.player-disk-right .tile {
+  transform: rotate(-90deg);
+  margin: -3px 0;
+}
+
+/* Meld group for side players */
+.player-disk-left .meld-group,
+.player-disk-right .meld-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  margin-bottom: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Meld group for top player */
+.player-disk-top .meld-group {
+  display: flex;
+  flex-direction: row;
+  gap: 1px;
+  margin-right: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
 /* Bottom Actions Area - no longer uses grid-area */
 .bottom-actions {
   display: flex;
@@ -123,28 +237,77 @@
   }
 }
 
-/* Left/Right discard areas - width = 6 tiles height + gaps (26*6 + 10 = 166px) */
-.discard-area-left,
-.discard-area-right {
+/* Left discard area (上家) - tiles flow top to bottom, wrap to new column on LEFT */
+/* Tiles rotated 90° to be readable from left side */
+/* Start from top-right corner, flow down, wrap left */
+/* Use same layout as right but flip horizontally */
+.discard-area-left {
   width: 166px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 3px;
+  row-gap: 0px;
+  padding: 7px 8px 7px 3px;
   background: rgba(100, 150, 200, 0.15);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   align-content: flex-start;
-  overflow: auto;
+  justify-content: flex-start;
+  overflow: hidden;
+  transform: scaleX(-1);
+}
+
+.discard-area-left .tile {
+  transform: scaleX(-1) rotate(90deg);
+  margin-top: -4px;
+  margin-bottom: -4px;
+}
+
+/* Right discard area (下家) - tiles flow bottom to top, wrap to new column on RIGHT */
+/* Tiles rotated -90° to be readable from right side */
+/* Start from bottom-left corner, flow up, wrap right */
+.discard-area-right {
+  width: 166px;
+  display: flex;
+  flex-direction: column-reverse;
+  flex-wrap: wrap;
+  gap: 2px;
+  row-gap: 0px;
+  padding: 7px 3px 7px 8px;
+  background: rgba(100, 150, 200, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.discard-area-right .tile {
+  transform: rotate(-90deg);
+  margin-top: -4px;
+  margin-bottom: -4px;
 }
 
 @media (min-width: 1024px) {
-  .discard-area-left,
+  .discard-area-left {
+    width: 240px;
+    gap: 3px;
+    row-gap: 0px;
+    padding: 9px 10px 9px 4px;
+  }
+
   .discard-area-right {
     width: 240px;
     gap: 3px;
-    padding: 4px;
+    row-gap: 0px;
+    padding: 9px 4px 9px 10px;
+  }
+
+  .discard-area-left .tile,
+  .discard-area-right .tile {
+    margin-top: -5px;
+    margin-bottom: -5px;
   }
 }
 
@@ -191,11 +354,38 @@
   color: #4CAF50;
 }
 
-/* Top/Bottom Discard Areas (in center column) */
-.discard-area-top,
-.discard-area-bottom {
+/* Phase display styles */
+.game-info-value.phase-flower-replacement {
+  color: #FFD700;
+  font-weight: 700;
+}
+
+.game-info-value.phase-normal {
+  color: #4CAF50;
+}
+
+/* Animated loading dots for 補花中 */
+.loading-dots::after {
+  content: '';
+  animation: loadingDots 1.5s infinite;
+}
+
+@keyframes loadingDots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Top Discard Area (對家) - tiles flow right to left, wrap to new row ABOVE */
+/* Tiles rotated 180° to be readable from top (opponent's view) */
+/* Start from bottom-right corner, flow left, wrap up */
+/* Use same layout as bottom but flip both axes (180 degree rotation) */
+.discard-area-top {
   flex: 1;
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   gap: 2px;
   padding: 3px;
@@ -203,8 +393,30 @@
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   align-content: flex-start;
-  justify-content: center;
-  overflow: auto;
+  justify-content: flex-start;
+  overflow: hidden;
+  transform: scale(-1);
+}
+
+.discard-area-top .tile {
+  transform: scale(-1);
+}
+
+/* Bottom Discard Area (自己/own) - tiles flow left to right, wrap to new row BELOW */
+/* Tiles not rotated - readable from bottom (player's view) */
+.discard-area-bottom {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(100, 150, 200, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
 }
 
 @media (min-width: 1024px) {
@@ -227,9 +439,48 @@
   align-content: flex-start;
   justify-content: center;
   overflow: auto;
+  position: relative;
 }
 
+/* Discard area player name label - watermark style */
+.discard-area-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
 
+/* Rotate labels to match tile orientation for each area */
+.discard-area-top .discard-area-label {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.discard-area-left .discard-area-label {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.discard-area-right .discard-area-label {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+/* Ensure tiles appear above the label */
+.discard-area .tile {
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 1024px) {
+  .discard-area-label {
+    font-size: 2rem;
+  }
+}
 
 /* Player Hand Area */
 .player-hand {
@@ -239,6 +490,35 @@
   padding: 3px;
   display: flex;
   gap: 2px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Current turn highlight - orange background */
+.player-hand.current-turn,
+.player-area-left.current-turn,
+.player-area-right.current-turn {
+  background: rgba(255, 165, 0, 0.5) !important;
+  box-shadow: 0 0 15px rgba(255, 165, 0, 0.6), inset 0 0 10px rgba(255, 165, 0, 0.2) !important;
+  border-color: rgba(255, 165, 0, 0.8) !important;
+}
+
+/* Flower replacement highlight - golden/yellow pulsing background */
+.player-hand.flower-replacement,
+.player-area-left.flower-replacement,
+.player-area-right.flower-replacement {
+  background: rgba(255, 215, 0, 0.5) !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.7), inset 0 0 15px rgba(255, 215, 0, 0.3) !important;
+  border-color: rgba(255, 215, 0, 0.9) !important;
+  animation: flowerReplacementPulse 1s ease-in-out infinite;
+}
+
+@keyframes flowerReplacementPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.7), inset 0 0 15px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.9), inset 0 0 20px rgba(255, 215, 0, 0.5);
+  }
 }
 
 @media (min-width: 1024px) {
@@ -267,6 +547,7 @@
   justify-content: center;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow: visible;
   border-radius: 6px;
   position: relative;
 }
@@ -294,11 +575,22 @@
   white-space: nowrap;
 }
 
+/* Right side player name - position at top-right corner */
+.side-player-info-right {
+  left: auto;
+  right: 2px;
+}
+
 @media (min-width: 1024px) {
   .side-player-info {
     font-size: 12px;
     top: 4px;
     left: 4px;
+  }
+
+  .side-player-info-right {
+    left: auto;
+    right: 4px;
   }
 }
 
@@ -325,6 +617,51 @@
 
 .player-hand-top {
   position: relative;
+}
+
+/* Top player tiles container - hand and disk in one row */
+.top-player-tiles-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Top player disk - on the right of hand */
+.player-disk-top {
+  display: flex;
+  flex-direction: row;
+  gap: 1px;
+  align-items: center;
+}
+
+/* Make disk tiles same size as tile-back for top player */
+.player-disk-top .tile,
+.player-disk-top .tile.normal {
+  width: 18px !important;
+  height: 26px !important;
+  min-width: 18px !important;
+  min-height: 26px !important;
+  max-width: 18px !important;
+  max-height: 26px !important;
+  padding: 1px !important;
+  border-width: 1px !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 1024px) {
+  .player-disk-top .tile,
+  .player-disk-top .tile.normal {
+    width: 28px !important;
+    height: 38px !important;
+    min-width: 28px !important;
+    min-height: 38px !important;
+    max-width: 28px !important;
+    max-height: 38px !important;
+    padding: 2px !important;
+    border-width: 1px !important;
+  }
 }
 
 .player-name-compact {
@@ -447,6 +784,30 @@
   border-color: #FF9800;
 }
 
+/* Player Disk - Revealed Bonus Tiles (花/季) for bottom player */
+.revealed-bonus-tiles {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Meld group - group tiles in a meld together */
+.meld-group {
+  display: flex;
+  gap: 1px;
+  margin-right: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Bottom player disk - on the left of hand */
+.player-hand-bottom .revealed-bonus-tiles {
+  margin-right: 8px;
+}
+
 /* My Hand (Bottom Player) */
 .my-hand {
   display: flex;
@@ -454,8 +815,7 @@
   flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
 }
 
 /* Player Actions - Single row layout */
@@ -526,6 +886,21 @@
   background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
 }
 
+/* Pending claim button - pulsing animation */
+.action-btn-pending {
+  background: linear-gradient(135deg, #f5af19 0%, #f12711 100%);
+  animation: claim-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes claim-pulse {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(245, 175, 25, 0.8);
+  }
+}
+
 /* Old responsive rules removed - using mobile-first approach with min-width: 1024px */
 
 /* Animations */
@@ -573,5 +948,217 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
+}
+
+/* Claim Popup Overlay */
+.claim-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Claim Popup */
+.claim-popup {
+  background: linear-gradient(135deg, #2a3a4a 0%, #1a2a3a 100%);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 200, 100, 0.5);
+  animation: popIn 0.3s ease-out;
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.claim-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.claim-popup-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.claim-popup-timer {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.2);
+  padding: 4px 12px;
+  border-radius: 20px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.claim-popup-tile {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.claim-popup-tile .tile {
+  transform: scale(1.5);
+}
+
+.claim-popup-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.claim-btn {
+  padding: 12px 24px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+}
+
+.claim-btn:not(.claim-btn-hu) {
+  background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+  color: white;
+}
+
+.claim-btn:not(.claim-btn-hu):hover {
+  background: linear-gradient(135deg, #5aa0e9 0%, #458acd 100%);
+  transform: translateY(-2px);
+}
+
+.claim-btn-hu {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+}
+
+.claim-btn-hu:hover {
+  background: linear-gradient(135deg, #f75c4c 0%, #d0493b 100%);
+  transform: translateY(-2px);
+}
+
+.claim-btn-pending {
+  animation: pulse 0.5s ease-in-out infinite;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+}
+
+.claim-popup-status {
+  margin-top: 15px;
+  text-align: center;
+  color: #ffd700;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Pass button - 不吃 */
+.claim-pass-btn {
+  margin-top: 15px;
+  padding: 10px 30px;
+  background: linear-gradient(135deg, #666 0%, #444 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.claim-pass-btn:hover {
+  background: linear-gradient(135deg, #777 0%, #555 100%);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+/* Claim Options List - shows all possible claim sets */
+.claim-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.claim-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, #3a4a5a 0%, #2a3a4a 100%);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.claim-option-btn:hover {
+  background: linear-gradient(135deg, #4a5a6a 0%, #3a4a5a 100%);
+  border-color: rgba(255, 200, 100, 0.5);
+  transform: translateX(5px);
+}
+
+.claim-option-btn.claim-option-selected {
+  background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+  border-color: #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+}
+
+.claim-option-btn.claim-option-hu {
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.claim-option-btn.claim-option-hu:hover {
+  border-color: rgba(231, 76, 60, 0.8);
+}
+
+.claim-option-btn.claim-option-hu.claim-option-selected {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  border-color: #ffd700;
+}
+
+.claim-option-label {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffd700;
+  min-width: 40px;
+  text-align: center;
+}
+
+.claim-tiles-preview {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.claim-tiles-preview .tile {
+  transform: scale(0.9);
 }
 

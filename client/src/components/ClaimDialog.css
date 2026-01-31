@@ -88,6 +88,11 @@
   min-width: 100px;
 }
 
+.chow-button {
+  background: linear-gradient(135deg, #4CAF50, #388E3C);
+  color: white;
+}
+
 .pong-button {
   background: linear-gradient(135deg, #2196F3, #1976D2);
   color: white;

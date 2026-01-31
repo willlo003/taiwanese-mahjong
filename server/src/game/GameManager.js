@@ -191,8 +191,12 @@ export class GameManager {
 
   startGame() {
     console.log('Starting game with 4 players...');
-    
-    const playerList = Array.from(this.players.values());
+
+    // Sort players by position (0=東, 1=南, 2=西, 3=北)
+    // This ensures dealerIndex=0 corresponds to position 0 (東)
+    const playerList = Array.from(this.players.values()).sort((a, b) => a.position - b.position);
+    console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position})`));
+
     this.game = new MahjongGame(playerList, this.broadcast.bind(this));
     this.game.start();
   }

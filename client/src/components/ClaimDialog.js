@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './ClaimDialog.css';
 import Tile from './Tile';
 
-function ClaimDialog({ tile, canPong, canGang, onPong, onGang, onSkip, timeout = 5000 }) {
+function ClaimDialog({ tile, canPong, canGang, canChow, onPong, onGang, onChow, onSkip, timeout = 3000 }) {
   const [timeLeft, setTimeLeft] = useState(timeout / 1000);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ function ClaimDialog({ tile, canPong, canGang, onPong, onGang, onSkip, timeout =
     <div className="claim-dialog-overlay">
       <div className="claim-dialog">
         <h2>Claim Tile?</h2>
-        
+
         <div className="claim-tile">
           <Tile tile={tile} size="normal" />
         </div>
@@ -35,6 +35,11 @@ function ClaimDialog({ tile, canPong, canGang, onPong, onGang, onSkip, timeout =
         </div>
 
         <div className="claim-actions">
+          {canChow && (
+            <button className="claim-button chow-button" onClick={() => onChow && onChow([])}>
+              上 Chow
+            </button>
+          )}
           {canPong && (
             <button className="claim-button pong-button" onClick={onPong}>
               碰 Pong

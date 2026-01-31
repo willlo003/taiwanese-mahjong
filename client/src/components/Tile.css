@@ -7,10 +7,12 @@
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  transition: all 0.2s;
+  /* Transition for smooth selection/deselection */
+  transition: margin 0.15s ease-out, box-shadow 0.15s ease-out, background 0.15s ease-out, border-color 0.15s ease-out;
   user-select: none;
-  animation: tileAppear 0.3s ease-out;
   position: relative;
+  /* Default margin */
+  margin: 0;
 
   /* 3D shadow effect - multiple layers for depth */
   box-shadow:
@@ -68,10 +70,8 @@
   }
 }
 
-.tile:not(.disabled):hover {
-  transform: translateY(-5px);
-  animation: tileHover 0.3s ease-in-out;
-
+/* Hover effect - only when not selected and not disabled */
+.tile:not(.disabled):not(.selected):hover {
   /* Enhanced 3D shadow on hover */
   box-shadow:
     0 4px 8px rgba(0, 0, 0, 0.2),
@@ -84,19 +84,15 @@
   background: linear-gradient(135deg, #f8f4ec 0%, #ebe0cc 100%);
 }
 
-.tile:not(.disabled):hover .tile-image {
+.tile:not(.disabled):not(.selected):hover .tile-image {
   /* Keep image clean, no additional filters */
   filter: none;
 }
 
-@keyframes tileHover {
-  0%, 100% { transform: translateY(-5px); }
-  50% { transform: translateY(-7px); }
-}
-
 .tile.selected {
-  transform: translateY(-10px);
-  animation: tileSelected 0.3s ease-in-out;
+  /* Move up slightly to indicate selection using margin */
+  margin-top: -8px;
+  margin-bottom: 8px;
 
   /* More prominent 3D shadow when selected */
   box-shadow:
@@ -111,15 +107,17 @@
   border-color: #c8b898;
 }
 
+@media (min-width: 1024px) {
+  .tile.selected {
+    /* Move up slightly to indicate selection (12px on desktop) */
+    margin-top: -12px;
+    margin-bottom: 12px;
+  }
+}
+
 .tile.selected .tile-image {
   /* Slightly brighter image when selected */
   filter: brightness(1.05);
-}
-
-@keyframes tileSelected {
-  0% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-15px) scale(1.05); }
-  100% { transform: translateY(-10px) scale(1); }
 }
 
 .tile.disabled {
