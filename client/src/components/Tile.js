@@ -1,7 +1,7 @@
 import React from 'react';
 import './Tile.css';
 
-function Tile({ tile, selected, onClick, disabled, size = 'normal' }) {
+function Tile({ tile, selected, onClick, disabled, size = 'normal', className = '' }) {
   // Return null if tile is undefined or null
   if (!tile) return null;
 
@@ -61,7 +61,7 @@ function Tile({ tile, selected, onClick, disabled, size = 'normal' }) {
 
   return (
     <div
-      className={`tile ${size} ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
+      className={`tile ${size} ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${className}`}
       onClick={!disabled ? onClick : undefined}
     >
       <img

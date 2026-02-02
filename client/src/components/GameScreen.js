@@ -35,10 +35,25 @@ function GameScreen({
   onClaimClose = null,
   onPass = null,
   onCancelClaim = null,
-  onLeaveGame = null
+  onLeaveGame = null,
+  revealedHands = {},
+  showResultPopup = false,
+  gameResult = null,
+  readyPlayers = [],
+  onResultReady = null,
+  onResultLeave = null
 }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSelfDrawWinPopup, setShowSelfDrawWinPopup] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  // Reset isReady when result popup is closed (new game starting)
+  useEffect(() => {
+    if (!showResultPopup) {
+      setIsReady(false);
+    }
+  }, [showResultPopup]);
+
   // Helper to convert wind/round to Chinese
   const windToChinese = (wind) => {
     const map = { east: '東', south: '南', west: '西', north: '北' };
@@ -171,16 +186,29 @@ function GameScreen({
     const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
     const playerBonusTiles = revealedBonusTiles[player.id] || [];
     const playerMelds = melds[player.id] || [];
+    const playerRevealedHand = revealedHands[player.id] || [];
+    const shouldReveal = showResultPopup && playerRevealedHand.length > 0;
 
     const isDoingFlowerReplacement = gamePhase === 'flower_replacement' && flowerReplacementPlayer === player.id;
+
+    // Get winner/loser status from gameResult
+    const isWinner = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isWinner;
+    const isLoser = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isLoser;
+
     return (
-      <div className={`player-hand player-hand-top ${isActive ? 'current-turn' : ''} ${isDoingFlowerReplacement ? 'flower-replacement' : ''}`}>
+      <div className={`player-hand player-hand-top ${isActive && !showResultPopup ? 'current-turn' : ''} ${isDoingFlowerReplacement ? 'flower-replacement' : ''} ${isWinner ? 'game-winner' : ''} ${isLoser ? 'game-loser' : ''}`}>
         <div className="top-player-tiles-container">
-          {/* Hand tiles */}
+          {/* Hand tiles - show revealed if game ended */}
           <div className="player-tiles player-tiles-top">
-            {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
-              <div key={idx} className="tile-back" />
-            ))}
+            {shouldReveal ? (
+              sortHand(playerRevealedHand).map((tile, idx) => (
+                <Tile key={idx} tile={tile} className="revealed-tile" />
+              ))
+            ) : (
+              Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
+                <div key={idx} className="tile-back" />
+              ))
+            )}
           </div>
           {/* Player Disk - bonus tiles first (left), then melds (right) */}
           {(playerBonusTiles.length > 0 || playerMelds.length > 0) && (
@@ -215,6 +243,8 @@ function GameScreen({
     const tileCount = playerHandSizes[player.id] !== undefined ? playerHandSizes[player.id] : 16;
     const playerBonusTiles = revealedBonusTiles[player.id] || [];
     const playerMelds = melds[player.id] || [];
+    const playerRevealedHand = revealedHands[player.id] || [];
+    const shouldReveal = showResultPopup && playerRevealedHand.length > 0;
 
     const isDoingFlowerReplacement = gamePhase === 'flower_replacement' && flowerReplacementPlayer === player.id;
 
@@ -267,16 +297,30 @@ function GameScreen({
       </div>
     );
 
+    // Get winner/loser status from gameResult
+    const isWinner = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isWinner;
+    const isLoser = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isLoser;
+
+    // Sort the hand, and reverse for right player (so first tile appears at bottom)
+    const sortedRevealedHand = sortHand(playerRevealedHand);
+    const orderedRevealedHand = position === 'right' ? [...sortedRevealedHand].reverse() : sortedRevealedHand;
+
     const handColumn = (
       <div className={`player-tiles player-tiles-${position}`}>
-        {Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
-          <div key={idx} className="tile-back" />
-        ))}
+        {shouldReveal ? (
+          orderedRevealedHand.map((tile, idx) => (
+            <Tile key={idx} tile={tile} className="revealed-tile" />
+          ))
+        ) : (
+          Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
+            <div key={idx} className="tile-back" />
+          ))
+        )}
       </div>
     );
 
     return (
-      <div className={`player-area-${position} ${isActive ? 'current-turn' : ''} ${isDoingFlowerReplacement ? 'flower-replacement' : ''}`}>
+      <div className={`player-area-${position} ${isActive && !showResultPopup ? 'current-turn' : ''} ${isDoingFlowerReplacement ? 'flower-replacement' : ''} ${isWinner ? 'game-winner' : ''} ${isLoser ? 'game-loser' : ''}`}>
         <div className={`side-player-tiles-container side-player-tiles-container-${position}`}>
           {position === 'left' ? (
             <>
@@ -373,6 +417,25 @@ function GameScreen({
               ))}
             </div>
           </div>
+
+          {/* Result Popup - shown when game ends, overlays center area */}
+          {showResultPopup && gameResult && (
+            <ResultPopup
+              gameResult={gameResult}
+              playerInfo={playerInfo}
+              players={players}
+              readyPlayers={readyPlayers}
+              isReady={isReady}
+              onReady={() => {
+                setIsReady(true);
+                onResultReady && onResultReady();
+              }}
+              onLeave={() => {
+                onResultLeave && onResultLeave();
+              }}
+              windToChinese={windToChinese}
+            />
+          )}
         </div>
 
         {renderSidePlayerArea(rightPlayer, 'right')}
@@ -385,8 +448,11 @@ function GameScreen({
           const isMyFlowerReplacement = gamePhase === 'flower_replacement' && flowerReplacementPlayer === playerInfo?.playerId;
           const myBonusTiles = revealedBonusTiles[playerInfo?.playerId] || [];
           const myMelds = melds[playerInfo?.playerId] || [];
+          // Get winner/loser status from gameResult
+          const isMyWinner = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === playerInfo?.playerId)?.isWinner;
+          const isMyLoser = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === playerInfo?.playerId)?.isLoser;
           return (
-            <div className={`player-hand player-hand-bottom ${isMyActive ? 'current-turn' : ''} ${isMyFlowerReplacement ? 'flower-replacement' : ''}`}>
+            <div className={`player-hand player-hand-bottom ${isMyActive && !showResultPopup ? 'current-turn' : ''} ${isMyFlowerReplacement ? 'flower-replacement' : ''} ${isMyWinner ? 'game-winner' : ''} ${isMyLoser ? 'game-loser' : ''}`}>
               {/* Revealed Bonus Tiles and Melds - bonus tiles first (left), then melds (right) */}
               {(myBonusTiles.length > 0 || myMelds.length > 0) && (
                 <div className="revealed-bonus-tiles">
@@ -503,6 +569,79 @@ function GameScreen({
           onCancel={() => setShowSelfDrawWinPopup(false)}
         />
       )}
+
+    </div>
+  );
+}
+
+// Result Popup Component - overlays center area when game ends
+function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, onReady, onLeave, windToChinese }) {
+  if (!gameResult) return null;
+
+  const { winType, winnerName, loserName, pattern, playerResults, nextRound, nextWind, gameEnded } = gameResult;
+
+  return (
+    <div className="result-popup-overlay">
+      <div className="result-popup">
+        <div className="result-popup-wintype">
+          {winType || '和局'}
+        </div>
+
+        {winnerName && (
+          <div className="result-popup-winner">
+            贏家: {winnerName}
+          </div>
+        )}
+
+        {loserName && winType === '出沖' && (
+          <div className="result-popup-loser">
+            出沖: {loserName}
+          </div>
+        )}
+
+        <div className="result-popup-players">
+          {playerResults && playerResults.map((result) => (
+            <div
+              key={result.playerId}
+              className={`result-popup-player ${result.isWinner ? 'winner' : ''} ${result.isLoser ? 'loser' : ''}`}
+            >
+              <span className="result-player-name">
+                {result.playerName}
+                {result.isDealer && <span className="dealer-badge">莊</span>}
+              </span>
+              <span className="result-player-position">{windToChinese(result.position)}</span>
+              <span className="result-player-ready">
+                {readyPlayers.includes(result.playerId) ? '✓ 準備' : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {!gameEnded && (
+          <div className="result-popup-next">
+            下一局: {windToChinese(nextRound)}圈{windToChinese(nextWind)}風
+          </div>
+        )}
+
+        {gameEnded && (
+          <div className="result-popup-gameover">
+            遊戲結束！
+          </div>
+        )}
+
+        <div className="result-popup-actions">
+          <button
+            className={`result-ready-btn ${isReady ? 'ready-active' : ''}`}
+            onClick={onReady}
+            disabled={isReady}
+          >
+            {isReady ? '已準備' : '準備'}
+          </button>
+          <button className="result-leave-btn" onClick={onLeave}>
+            離開
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -511,8 +650,6 @@ function GameScreen({
 function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu, lastDiscardedTile, onClose, onPass, onCancelClaim }) {
   const [timeLeft, setTimeLeft] = useState(Math.ceil((claimOptions?.timeout || 5000) / 1000));
   const [selectedClaim, setSelectedClaim] = useState(null);
-  const [showWinCombinations, setShowWinCombinations] = useState(false);
-  const [selectedWinCombination, setSelectedWinCombination] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -552,6 +689,10 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
   const isSameClaim = (claim1, claim2) => {
     if (!claim1 || !claim2) return false;
     if (claim1.type !== claim2.type) return false;
+    // For hu claims with combination index, compare the index
+    if (claim1.type === 'hu' && claim1.combinationIndex !== undefined && claim2.combinationIndex !== undefined) {
+      return claim1.combinationIndex === claim2.combinationIndex;
+    }
     // Compare tiles if available
     if (claim1.tiles && claim2.tiles) {
       if (claim1.tiles.length !== claim2.tiles.length) return false;
@@ -636,17 +777,43 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
             </button>
           ))}
 
-          {claimOptions?.canHu && lastDiscardedTile && (
+          {/* Win combinations - show each as a separate claim option */}
+          {claimOptions?.canHu && lastDiscardedTile && claimOptions.winCombinations && claimOptions.winCombinations.length > 0 && (
+            claimOptions.winCombinations.map((combo, idx) => {
+              const huClaim = { type: 'hu', tiles: [lastDiscardedTile], combination: combo, combinationIndex: idx };
+              // Use displayTiles which shows the actual set/pair that the last tile completes
+              const tilesToShow = combo.displayTiles || combo.pairTiles || [];
+              return (
+                <button
+                  key={`hu-${idx}`}
+                  className={`claim-option-btn claim-option-hu ${isSameClaim(selectedClaim, huClaim) ? 'claim-option-selected' : ''}`}
+                  onClick={() => handleClaimClick(huClaim)}
+                >
+                  <span className="claim-option-label">食</span>
+                  <div className="claim-tiles-preview">
+                    {/* Show the tiles that form the winning set/pair (including the discarded tile) */}
+                    {tilesToShow.map((tile, tileIdx) => (
+                      <Tile key={tileIdx} tile={tile} size="small" />
+                    ))}
+                    {/* Show the discarded tile if not already in displayTiles */}
+                    {!tilesToShow.some(t => t.suit === lastDiscardedTile.suit && t.value === lastDiscardedTile.value) && (
+                      <Tile tile={lastDiscardedTile} size="small" />
+                    )}
+                  </div>
+                  <span className="claim-option-info">
+                    {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
+                    {combo.lastTileRole === 'pair' ? ' (對子)' : combo.lastTileRole === 'pong' ? ' (碰)' : combo.lastTileRole === 'chow' ? ' (順子)' : ' (組)'}
+                  </span>
+                </button>
+              );
+            })
+          )}
+
+          {/* Fallback: single 食 button if no combinations but canHu is true */}
+          {claimOptions?.canHu && lastDiscardedTile && (!claimOptions.winCombinations || claimOptions.winCombinations.length === 0) && (
             <button
               className={`claim-option-btn claim-option-hu ${selectedClaim?.type === 'hu' ? 'claim-option-selected' : ''}`}
-              onClick={() => {
-                // If there are win combinations, show them
-                if (claimOptions.winCombinations && claimOptions.winCombinations.length > 0) {
-                  setShowWinCombinations(true);
-                } else {
-                  handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] });
-                }
-              }}
+              onClick={() => handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] })}
             >
               <span className="claim-option-label">食</span>
               <div className="claim-tiles-preview">
@@ -664,58 +831,6 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
         {(pendingClaim || selectedClaim) && (
           <div className="claim-popup-status">
             已選擇: {getClaimLabel(selectedClaim?.type || pendingClaim)}
-          </div>
-        )}
-
-        {/* Win Combinations Popup */}
-        {showWinCombinations && claimOptions?.winCombinations && (
-          <div className="win-combinations-overlay">
-            <div className="win-combinations-popup">
-              <div className="claim-popup-header">
-                <h3>食 - 選擇胡牌組合</h3>
-              </div>
-
-              <div className="win-combinations-list">
-                {claimOptions.winCombinations.map((combo, idx) => (
-                  <button
-                    key={idx}
-                    className={`win-combination-btn ${selectedWinCombination === idx ? 'win-combination-selected' : ''}`}
-                    onClick={() => setSelectedWinCombination(idx)}
-                  >
-                    <span className="win-combination-number">組合 {idx + 1}</span>
-                    <div className="win-combination-info">
-                      <div className="win-combination-pattern">
-                        {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
-                      </div>
-                      <div className="win-combination-role">
-                        最後一張: {combo.lastTileRole === 'pair' ? '對子' : combo.lastTileRole === 'pong' ? '碰' : '順子'}
-                      </div>
-                      {lastDiscardedTile && (
-                        <div className="win-combination-tile">
-                          <span>胡牌張:</span>
-                          <Tile tile={lastDiscardedTile} size="small" />
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="win-popup-actions">
-                <button className="claim-pass-btn" onClick={() => setShowWinCombinations(false)}>
-                  取消
-                </button>
-                <button
-                  className="claim-option-btn claim-option-hu"
-                  onClick={() => {
-                    setShowWinCombinations(false);
-                    handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] });
-                  }}
-                >
-                  確認胡牌
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>

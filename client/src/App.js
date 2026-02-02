@@ -36,6 +36,9 @@ function App() {
   const [canSelfDrawWin, setCanSelfDrawWin] = useState(false); // Whether player can win with self-draw
   const [selfDrawWinCombinations, setSelfDrawWinCombinations] = useState([]); // Possible winning combinations for self-draw
   const [gameResult, setGameResult] = useState(null); // Game result data
+  const [showResultPopup, setShowResultPopup] = useState(false); // Whether to show result popup overlay
+  const [revealedHands, setRevealedHands] = useState({}); // All player hands revealed at game end
+  const [readyPlayers, setReadyPlayers] = useState([]); // Players who are ready for next game
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -101,6 +104,20 @@ function App() {
         setCanSelfDrawWin(data.payload.canSelfDrawWin || false); // Check if player can win with self-draw
         setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
         soundManager.tileDraw();
+        break;
+
+      case 'dealer_first_turn':
+        // Dealer's first turn - they already have 17 tiles, check for 天胡 (Heavenly Hand)
+        console.log('[CLIENT] dealer_first_turn received:', data.payload);
+        setHand(data.payload.hand);
+        setTilesRemaining(data.payload.tilesRemaining);
+        setHasDrawn(true); // Dealer can discard immediately
+        // For 天胡, treat the last tile as the "drawn tile"
+        if (data.payload.hand && data.payload.hand.length > 0) {
+          setDrawnTile(data.payload.hand[data.payload.hand.length - 1]);
+        }
+        setCanSelfDrawWin(data.payload.canSelfDrawWin || false);
+        setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []);
         break;
 
       case 'player_drew':
@@ -285,9 +302,15 @@ function App() {
           soundManager.win();
         }
 
-        // Store game result and show result screen
+        // Store game result and show result popup (keep game screen visible)
         setGameResult(data.payload);
-        setGameState('result');
+        setShowResultPopup(true);
+        setReadyPlayers([]); // Reset ready players
+
+        // Store revealed hands for all players
+        if (data.payload.allPlayerHands) {
+          setRevealedHands(data.payload.allPlayerHands);
+        }
 
         // Clear claim-related states
         setClaimPeriodActive(false);
@@ -297,6 +320,26 @@ function App() {
         setClaimOptions(null);
         setCanSelfDrawWin(false);
 
+        break;
+      }
+
+      case 'player_ready': {
+        // A player is ready for next game
+        setReadyPlayers(prev => {
+          if (!prev.includes(data.payload.playerId)) {
+            return [...prev, data.payload.playerId];
+          }
+          return prev;
+        });
+        break;
+      }
+
+      case 'next_game_starting': {
+        // All players ready, starting next game
+        setShowResultPopup(false);
+        setGameResult(null);
+        setRevealedHands({});
+        setReadyPlayers([]);
         break;
       }
 
@@ -393,10 +436,13 @@ function App() {
 
   const handleResultReady = () => {
     // Send ready message to server
-    sendMessage({ type: 'result_ready', payload: {} });
+    sendMessage({ type: 'action', payload: { type: 'result_ready' } });
   };
 
   const handleResultLeave = () => {
+    // Send leave message to server
+    sendMessage({ type: 'leave_game', payload: {} });
+
     // Reset game state and go back to lobby
     setHand([]);
     setDrawnTile(null);
@@ -414,6 +460,9 @@ function App() {
     setPlayerWinds({});
     setHasDrawn(false);
     setGameResult(null);
+    setShowResultPopup(false);
+    setRevealedHands({});
+    setReadyPlayers([]);
     setGameState('lobby');
   };
 
@@ -476,6 +525,12 @@ function App() {
             onPass={handlePass}
             onCancelClaim={handleCancelClaim}
             onLeaveGame={handleLeaveGame}
+            revealedHands={revealedHands}
+            showResultPopup={showResultPopup}
+            gameResult={gameResult}
+            readyPlayers={readyPlayers}
+            onResultReady={handleResultReady}
+            onResultLeave={handleResultLeave}
           />
         </>
       )}

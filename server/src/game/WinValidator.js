@@ -370,7 +370,7 @@ export class WinValidator {
           combinations.push({
             pattern: 'standard',
             lastTileRole: 'pair',
-            tiles: [tile1, tile2]
+            displayTiles: [tile1, tile2]
           });
         }
       }
@@ -396,9 +396,22 @@ export class WinValidator {
             t.suit === pairTile.suit && t.value === pairTile.value
           ).slice(0, 2);
 
+          let displayTiles = pairTiles;
+          let lastTileSetType = null;
+
+          // If lastTile is part of a set (not pair), find which set it belongs to
+          if (!isLastTileInPair && lastTile) {
+            const setInfo = this.findSetContainingTile(remainingCounts, lastTile, handTiles);
+            if (setInfo) {
+              displayTiles = setInfo.tiles;
+              lastTileSetType = setInfo.type; // 'pong' or 'chow'
+            }
+          }
+
           combinations.push({
             pattern: 'standard',
-            lastTileRole: isLastTileInPair ? 'pair' : 'set',
+            lastTileRole: isLastTileInPair ? 'pair' : (lastTileSetType || 'set'),
+            displayTiles: displayTiles,
             pairTiles: pairTiles,
             pairKey: tileKey
           });
@@ -407,6 +420,86 @@ export class WinValidator {
     }
 
     return combinations;
+  }
+
+  /**
+   * Find the set (pong or chow) that contains the given tile
+   */
+  static findSetContainingTile(tileCounts, targetTile, handTiles) {
+    const targetKey = this.makeTileKey(targetTile.suit, targetTile.value);
+
+    // Check if it can be part of a pong (3 of the same)
+    if (tileCounts[targetKey] >= 3) {
+      // Get 3 tiles of this type from hand
+      const pongTiles = handTiles.filter(t =>
+        t.suit === targetTile.suit && t.value === targetTile.value
+      ).slice(0, 3);
+      return { type: 'pong', tiles: pongTiles };
+    }
+
+    // Check if it can be part of a chow (sequence)
+    const tile = this.parseTileKey(targetKey);
+    if (tile.type === 'suit' && typeof tile.value === 'number') {
+      // Check all possible sequences containing this tile
+      // Sequence 1: [v-2, v-1, v]
+      const seq1Keys = [
+        this.makeTileKey(tile.suit, tile.value - 2),
+        this.makeTileKey(tile.suit, tile.value - 1),
+        targetKey
+      ];
+      if (tile.value >= 3 &&
+          tileCounts[seq1Keys[0]] > 0 &&
+          tileCounts[seq1Keys[1]] > 0 &&
+          tileCounts[seq1Keys[2]] > 0) {
+        const chowTiles = seq1Keys.map(key => {
+          const parsed = this.parseTileKey(key);
+          return handTiles.find(t => t.suit === parsed.suit && t.value === parsed.value);
+        }).filter(Boolean);
+        if (chowTiles.length === 3) {
+          return { type: 'chow', tiles: chowTiles };
+        }
+      }
+
+      // Sequence 2: [v-1, v, v+1]
+      const seq2Keys = [
+        this.makeTileKey(tile.suit, tile.value - 1),
+        targetKey,
+        this.makeTileKey(tile.suit, tile.value + 1)
+      ];
+      if (tile.value >= 2 && tile.value <= 8 &&
+          tileCounts[seq2Keys[0]] > 0 &&
+          tileCounts[seq2Keys[1]] > 0 &&
+          tileCounts[seq2Keys[2]] > 0) {
+        const chowTiles = seq2Keys.map(key => {
+          const parsed = this.parseTileKey(key);
+          return handTiles.find(t => t.suit === parsed.suit && t.value === parsed.value);
+        }).filter(Boolean);
+        if (chowTiles.length === 3) {
+          return { type: 'chow', tiles: chowTiles };
+        }
+      }
+
+      // Sequence 3: [v, v+1, v+2]
+      const seq3Keys = [
+        targetKey,
+        this.makeTileKey(tile.suit, tile.value + 1),
+        this.makeTileKey(tile.suit, tile.value + 2)
+      ];
+      if (tile.value <= 7 &&
+          tileCounts[seq3Keys[0]] > 0 &&
+          tileCounts[seq3Keys[1]] > 0 &&
+          tileCounts[seq3Keys[2]] > 0) {
+        const chowTiles = seq3Keys.map(key => {
+          const parsed = this.parseTileKey(key);
+          return handTiles.find(t => t.suit === parsed.suit && t.value === parsed.value);
+        }).filter(Boolean);
+        if (chowTiles.length === 3) {
+          return { type: 'chow', tiles: chowTiles };
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -424,18 +517,20 @@ export class WinValidator {
 
       if (allPairs && pairCount === 7) {
         // Find which pair contains the last tile
-        let lastTilePairKey = null;
+        let displayTiles = [];
         if (lastTile) {
           const lastKey = this.makeTileKey(lastTile.suit, lastTile.value);
           if (tileCounts[lastKey] === 2) {
-            lastTilePairKey = lastKey;
+            displayTiles = handTiles.filter(t =>
+              t.suit === lastTile.suit && t.value === lastTile.value
+            ).slice(0, 2);
           }
         }
 
         combinations.push({
           pattern: 'ligu_ligu',
           lastTileRole: 'pair',
-          lastTilePairKey: lastTilePairKey
+          displayTiles: displayTiles
         });
       }
     } else {
@@ -454,9 +549,24 @@ export class WinValidator {
               lastTile.suit === pongTile.suit &&
               lastTile.value === pongTile.value;
 
+            // Get display tiles based on what the last tile completes
+            let displayTiles = [];
+            if (isLastTileInPong) {
+              // Last tile completes the pong
+              displayTiles = handTiles.filter(t =>
+                t.suit === pongTile.suit && t.value === pongTile.value
+              ).slice(0, 3);
+            } else if (lastTile) {
+              // Last tile completes a pair
+              displayTiles = handTiles.filter(t =>
+                t.suit === lastTile.suit && t.value === lastTile.value
+              ).slice(0, 2);
+            }
+
             combinations.push({
               pattern: 'ligu_ligu',
               lastTileRole: isLastTileInPong ? 'pong' : 'pair',
+              displayTiles: displayTiles,
               pongKey: tileKey
             });
           }
