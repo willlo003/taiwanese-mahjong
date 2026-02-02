@@ -30,12 +30,15 @@ function GameScreen({
   claimPeriodActive = false,
   pendingClaim = null,
   lastDiscardedTile = null,
+  canSelfDrawWin = false,
+  selfDrawWinCombinations = [],
   onClaimClose = null,
   onPass = null,
   onCancelClaim = null,
   onLeaveGame = null
 }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showSelfDrawWinPopup, setShowSelfDrawWinPopup] = useState(false);
   // Helper to convert wind/round to Chinese
   const windToChinese = (wind) => {
     const map = { east: '東', south: '南', west: '西', north: '北' };
@@ -437,7 +440,22 @@ function GameScreen({
           <div className="player-actions">
             <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>打牌</button>
             <button className="action-btn" disabled>聽</button>
-            <button className="action-btn action-btn-hu" onClick={onHu} disabled>食</button>
+            <button
+              className="action-btn action-btn-hu"
+              onClick={() => {
+                if (selfDrawWinCombinations && selfDrawWinCombinations.length > 0) {
+                  // Show popup to choose combination
+                  setShowSelfDrawWinPopup(true);
+                } else {
+                  // Direct win
+                  onHu();
+                }
+              }}
+              disabled={!canSelfDrawWin}
+              title={canSelfDrawWin ? '自摸' : ''}
+            >
+              食 {canSelfDrawWin && '(自摸)'}
+            </button>
             <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
           </div>
         </div>
@@ -472,6 +490,19 @@ function GameScreen({
           onCancelClaim={onCancelClaim}
         />
       )}
+
+      {/* Self-Draw Win Popup - shown when player clicks 食 for self-draw */}
+      {showSelfDrawWinPopup && canSelfDrawWin && (
+        <SelfDrawWinPopup
+          combinations={selfDrawWinCombinations}
+          drawnTile={drawnTile}
+          onConfirm={() => {
+            setShowSelfDrawWinPopup(false);
+            onHu();
+          }}
+          onCancel={() => setShowSelfDrawWinPopup(false)}
+        />
+      )}
     </div>
   );
 }
@@ -480,6 +511,8 @@ function GameScreen({
 function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu, lastDiscardedTile, onClose, onPass, onCancelClaim }) {
   const [timeLeft, setTimeLeft] = useState(Math.ceil((claimOptions?.timeout || 5000) / 1000));
   const [selectedClaim, setSelectedClaim] = useState(null);
+  const [showWinCombinations, setShowWinCombinations] = useState(false);
+  const [selectedWinCombination, setSelectedWinCombination] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -606,7 +639,14 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
           {claimOptions?.canHu && lastDiscardedTile && (
             <button
               className={`claim-option-btn claim-option-hu ${selectedClaim?.type === 'hu' ? 'claim-option-selected' : ''}`}
-              onClick={() => handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] })}
+              onClick={() => {
+                // If there are win combinations, show them
+                if (claimOptions.winCombinations && claimOptions.winCombinations.length > 0) {
+                  setShowWinCombinations(true);
+                } else {
+                  handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] });
+                }
+              }}
             >
               <span className="claim-option-label">食</span>
               <div className="claim-tiles-preview">
@@ -626,6 +666,116 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
             已選擇: {getClaimLabel(selectedClaim?.type || pendingClaim)}
           </div>
         )}
+
+        {/* Win Combinations Popup */}
+        {showWinCombinations && claimOptions?.winCombinations && (
+          <div className="win-combinations-overlay">
+            <div className="win-combinations-popup">
+              <div className="claim-popup-header">
+                <h3>食 - 選擇胡牌組合</h3>
+              </div>
+
+              <div className="win-combinations-list">
+                {claimOptions.winCombinations.map((combo, idx) => (
+                  <button
+                    key={idx}
+                    className={`win-combination-btn ${selectedWinCombination === idx ? 'win-combination-selected' : ''}`}
+                    onClick={() => setSelectedWinCombination(idx)}
+                  >
+                    <span className="win-combination-number">組合 {idx + 1}</span>
+                    <div className="win-combination-info">
+                      <div className="win-combination-pattern">
+                        {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
+                      </div>
+                      <div className="win-combination-role">
+                        最後一張: {combo.lastTileRole === 'pair' ? '對子' : combo.lastTileRole === 'pong' ? '碰' : '順子'}
+                      </div>
+                      {lastDiscardedTile && (
+                        <div className="win-combination-tile">
+                          <span>胡牌張:</span>
+                          <Tile tile={lastDiscardedTile} size="small" />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="win-popup-actions">
+                <button className="claim-pass-btn" onClick={() => setShowWinCombinations(false)}>
+                  取消
+                </button>
+                <button
+                  className="claim-option-btn claim-option-hu"
+                  onClick={() => {
+                    setShowWinCombinations(false);
+                    handleClaimClick({ type: 'hu', tiles: [lastDiscardedTile] });
+                  }}
+                >
+                  確認胡牌
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Self-Draw Win Popup Component
+function SelfDrawWinPopup({ combinations, drawnTile, onConfirm, onCancel }) {
+  const [selectedCombination, setSelectedCombination] = useState(0);
+
+  const renderCombinationInfo = (combo) => {
+    if (!combo) return null;
+
+    return (
+      <div className="win-combination-info">
+        <div className="win-combination-pattern">
+          {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
+        </div>
+        <div className="win-combination-role">
+          最後一張: {combo.lastTileRole === 'pair' ? '對子' : combo.lastTileRole === 'pong' ? '碰' : '順子'}
+        </div>
+        {drawnTile && (
+          <div className="win-combination-tile">
+            <span>胡牌張:</span>
+            <Tile tile={drawnTile} size="small" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="claim-popup-overlay">
+      <div className="claim-popup">
+        <div className="claim-popup-header">
+          <h3>自摸 - 選擇胡牌組合</h3>
+        </div>
+
+        <div className="win-combinations-list">
+          {combinations.map((combo, idx) => (
+            <button
+              key={idx}
+              className={`win-combination-btn ${selectedCombination === idx ? 'win-combination-selected' : ''}`}
+              onClick={() => setSelectedCombination(idx)}
+            >
+              <span className="win-combination-number">組合 {idx + 1}</span>
+              {renderCombinationInfo(combo)}
+            </button>
+          ))}
+        </div>
+
+        <div className="win-popup-actions">
+          <button className="claim-pass-btn" onClick={onCancel}>
+            取消
+          </button>
+          <button className="claim-option-btn claim-option-hu" onClick={onConfirm}>
+            確認胡牌
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -3,13 +3,14 @@ import './App.css';
 import JoinScreen from './components/JoinScreen';
 import LobbyScreen from './components/LobbyScreen';
 import GameScreen from './components/GameScreen';
+import GameResultScreen from './components/GameResultScreen';
 import { ToastContainer, showToast } from './components/Toast';
 // ClaimDialog removed - claim actions are now handled via action buttons directly
 import { useWebSocket } from './hooks/useWebSocket';
 import { soundManager } from './utils/sounds';
 
 function App() {
-  const [gameState, setGameState] = useState('join'); // join, lobby, playing
+  const [gameState, setGameState] = useState('join'); // join, lobby, playing, result
   const [playerInfo, setPlayerInfo] = useState(null);
   const [players, setPlayers] = useState([]);
   const [currentPlayer, setCurrentPlayer] = useState(null);
@@ -32,6 +33,9 @@ function App() {
   const [lastDiscardedTile, setLastDiscardedTile] = useState(null); // The last discarded tile
   const [, setLastDiscardedBy] = useState(null); // Who discarded the last tile (setter only, value used for future features)
   const [pendingClaim, setPendingClaim] = useState(null); // The claim the player has registered
+  const [canSelfDrawWin, setCanSelfDrawWin] = useState(false); // Whether player can win with self-draw
+  const [selfDrawWinCombinations, setSelfDrawWinCombinations] = useState([]); // Possible winning combinations for self-draw
+  const [gameResult, setGameResult] = useState(null); // Game result data
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -94,6 +98,8 @@ function App() {
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
         setDrawnTile(data.payload.tile); // Track the drawn tile
+        setCanSelfDrawWin(data.payload.canSelfDrawWin || false); // Check if player can win with self-draw
+        setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
         soundManager.tileDraw();
         break;
 
@@ -115,6 +121,8 @@ function App() {
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
         setDrawnTile(data.payload.finalTile || data.payload.tile); // Track the final drawn tile after replacement
+        setCanSelfDrawWin(data.payload.canSelfDrawWin || false); // Check if player can win with self-draw
+        setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
         if (data.payload.revealedBonusTiles && playerInfo?.playerId) {
           setRevealedBonusTiles(prev => ({
             ...prev,
@@ -270,41 +278,25 @@ function App() {
         break;
 
       case 'game_ended': {
-        const winMessage = data.payload.winner
-          ? `${data.payload.winnerName} wins with ${data.payload.pattern}! Score: ${data.payload.score}`
-          : `Game ended: ${data.payload.reason}`;
+        console.log('[CLIENT] Game ended:', data.payload);
 
-        if (data.payload.winner) {
+        // Play win sound if there's a winner
+        if (data.payload.winner || data.payload.winners) {
           soundManager.win();
         }
 
-        // Reset game state
-        setHand([]);
-        setDrawnTile(null);
-        setDiscardPiles({});
-        setMelds({});
-        setRevealedBonusTiles({});
-        setCurrentPlayer(null);
-        setDealerIndex(0);
-        setTilesRemaining(144);
-        setPlayerHandSizes({});
-        setCurrentRound('east');
-        setCurrentWind('east');
-        setGamePhase('waiting');
-        setFlowerReplacementPlayer(null);
+        // Store game result and show result screen
+        setGameResult(data.payload);
+        setGameState('result');
+
+        // Clear claim-related states
         setClaimPeriodActive(false);
         setLastDiscardedTile(null);
         setLastDiscardedBy(null);
         setPendingClaim(null);
         setClaimOptions(null);
-        setPlayerWinds({});
-        setHasDrawn(false);
+        setCanSelfDrawWin(false);
 
-        setTimeout(() => {
-          showToast(winMessage, data.payload.winner ? 'success' : 'info');
-          // All players go back to lobby with cleared seats
-          setGameState('lobby');
-        }, 500);
         break;
       }
 
@@ -399,6 +391,32 @@ function App() {
     sendMessage({ type: 'leave_game', payload: {} });
   };
 
+  const handleResultReady = () => {
+    // Send ready message to server
+    sendMessage({ type: 'result_ready', payload: {} });
+  };
+
+  const handleResultLeave = () => {
+    // Reset game state and go back to lobby
+    setHand([]);
+    setDrawnTile(null);
+    setDiscardPiles({});
+    setMelds({});
+    setRevealedBonusTiles({});
+    setCurrentPlayer(null);
+    setDealerIndex(0);
+    setTilesRemaining(144);
+    setPlayerHandSizes({});
+    setCurrentRound('east');
+    setCurrentWind('east');
+    setGamePhase('waiting');
+    setFlowerReplacementPlayer(null);
+    setPlayerWinds({});
+    setHasDrawn(false);
+    setGameResult(null);
+    setGameState('lobby');
+  };
+
   return (
     <div className="App">
       {!isConnected && (
@@ -452,15 +470,25 @@ function App() {
             claimPeriodActive={claimPeriodActive}
             pendingClaim={pendingClaim}
             lastDiscardedTile={lastDiscardedTile}
+            canSelfDrawWin={canSelfDrawWin}
+            selfDrawWinCombinations={selfDrawWinCombinations}
             onClaimClose={handleSkipClaim}
             onPass={handlePass}
             onCancelClaim={handleCancelClaim}
             onLeaveGame={handleLeaveGame}
           />
-
-
         </>
       )}
+
+      {isConnected && gameState === 'result' && (
+        <GameResultScreen
+          gameResult={gameResult}
+          playerInfo={playerInfo}
+          onReady={handleResultReady}
+          onLeave={handleResultLeave}
+        />
+      )}
+
       <ToastContainer />
     </div>
   );

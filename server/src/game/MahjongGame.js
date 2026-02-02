@@ -82,7 +82,7 @@ export class MahjongGame {
   }
 
   dealInitialTiles() {
-    // Dealer (莊) gets 17 tiles, others get 16
+    // Dealer (莊) gets 17 tiles, others get 16 (Taiwanese Mahjong)
     this.players.forEach((player, index) => {
       const hand = [];
       const tileCount = index === this.dealerIndex ? 17 : 16;
@@ -317,8 +317,31 @@ export class MahjongGame {
 
     const playerIndex = this.players.indexOf(player);
 
-    // Claim actions can be done by any player during claim window (before turn check)
-    const claimActions = ['pong', 'gang', 'chow', 'shang', 'hu'];
+    // Special handling for 'hu' action
+    // If it's the player's turn and claim window is closed, treat as self-draw win (自摸)
+    // If claim window is open, treat as claiming win from discard (出沖)
+    if (action.type === 'hu') {
+      const isSelfDraw = playerIndex === this.currentPlayerIndex && !this.claimWindowOpen;
+
+      if (isSelfDraw) {
+        // Self-draw win attempt - handle immediately
+        this.handleHu(playerId);
+        return;
+      } else {
+        // Win by claiming discard - register the claim
+        const registered = this.registerClaim(playerId, action.type, action.tiles);
+        if (registered) {
+          player.ws.send(JSON.stringify({
+            type: 'claim_registered',
+            payload: { claimType: action.type }
+          }));
+        }
+        return;
+      }
+    }
+
+    // Other claim actions can be done by any player during claim window (before turn check)
+    const claimActions = ['pong', 'gang', 'chow', 'shang'];
 
     if (claimActions.includes(action.type)) {
       // Register the claim (will be resolved after freeze period)
@@ -436,6 +459,19 @@ export class MahjongGame {
     // Add the non-bonus tile to hand
     hand.push(tile);
 
+    // Check if player can win with self-draw (自摸)
+    const melds = this.melds.get(playerId);
+    const numRevealedSets = melds.length;
+    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+    const canSelfDrawWin = winResult.isWin;
+
+    // Find all possible winning combinations if can win
+    let selfDrawWinCombinations = [];
+    if (canSelfDrawWin) {
+      selfDrawWinCombinations = WinValidator.findWinningCombinations(hand, numRevealedSets, tile);
+      console.log(`[DRAW] Player ${player.name} can self-draw win with ${selfDrawWinCombinations.length} combinations`);
+    }
+
     // If we drew bonus tiles, notify everyone
     if (bonusTilesDrawn.length > 0) {
       const revealed = this.revealedBonusTiles.get(playerId);
@@ -448,7 +484,9 @@ export class MahjongGame {
           finalTile: tile,
           hand: hand,
           revealedBonusTiles: revealed,
-          tilesRemaining: this.tileManager.getRemainingCount()
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations
         }
       }));
 
@@ -471,7 +509,9 @@ export class MahjongGame {
         payload: {
           tile: tile,
           hand: hand,
-          tilesRemaining: this.tileManager.getRemainingCount()
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations
         }
       }));
 
@@ -552,22 +592,39 @@ export class MahjongGame {
   handleHu(playerId) {
     const hand = this.playerHands.get(playerId);
     const melds = this.melds.get(playerId);
+    const player = this.players.find(p => p.id === playerId);
+    const playerIndex = this.players.indexOf(player);
 
-    // Combine hand tiles with melds for validation
-    const allTiles = [...hand];
-    melds.forEach(meld => {
-      allTiles.push(...meld.tiles);
-    });
+    // Determine if this is self-draw (自摸) or win by discard (出沖)
+    // Self-draw: player's turn and they just drew a tile
+    // Win by discard: during claim period
+    const isSelfDraw = playerIndex === this.currentPlayerIndex && !this.claimWindowOpen;
 
-    const winResult = WinValidator.isWinningHand(allTiles, this.lastDiscardedTile);
+    // For win validation, we need to check hand tiles only (not melds)
+    // If self-draw, hand already includes the drawn tile
+    // If win by discard, we need to add the discarded tile to hand
+    const numRevealedSets = melds.length;
+    let handForValidation = [...hand];
+
+    if (!isSelfDraw && this.lastDiscardedTile) {
+      // Add the discarded tile to hand for validation
+      handForValidation.push(this.lastDiscardedTile);
+    }
+
+    const winResult = WinValidator.isWinningHandWithMelds(handForValidation, numRevealedSets, isSelfDraw ? null : this.lastDiscardedTile);
 
     if (winResult.isWin) {
-      const player = this.players.find(p => p.id === playerId);
-      console.log(`Player ${player.name} wins with pattern: ${winResult.pattern}`);
-      this.endGame('win', playerId, winResult);
+      console.log(`Player ${player.name} wins with pattern: ${winResult.pattern}, type: ${isSelfDraw ? '自摸' : '出沖'}`);
+
+      if (isSelfDraw) {
+        // 自摸 - self-draw win, all other players are losers
+        this.endGame('win_self_draw', playerId, winResult, null);
+      } else {
+        // 出沖 - win by claiming discarded tile
+        this.endGame('win_by_discard', playerId, winResult, this.lastDiscardedBy);
+      }
     } else {
       // Invalid win claim
-      const player = this.players.find(p => p.id === playerId);
       player.ws.send(JSON.stringify({
         type: 'error',
         message: 'Invalid win - hand does not meet winning conditions'
@@ -599,12 +656,35 @@ export class MahjongGame {
       if (player.id === discardedBy) return;
 
       const hand = this.playerHands.get(player.id);
+      const melds = this.melds.get(player.id);
       const matchingTiles = hand.filter(t =>
         t.suit === tile.suit && t.value === tile.value
       );
 
       // Build possible claim sets
       const possibleClaims = [];
+
+      // Check for 食 (Hu/Win) - if discarded tile + hand fulfills winning condition
+      // For win validation:
+      // - Count revealed melds (each meld = 1 set)
+      // - Check if hand tiles + discarded tile can form remaining sets + 1 pair
+      const numRevealedSets = melds.length;
+      const handWithDiscard = [...hand, tile];
+
+      console.log(`[CLAIM] Checking win for player ${player.name}:`);
+      console.log(`  Hand size: ${hand.length}, Revealed melds: ${numRevealedSets}, Hand+discard: ${handWithDiscard.length}`);
+
+      const winResult = WinValidator.isWinningHandWithMelds(handWithDiscard, numRevealedSets, tile);
+      const canHu = winResult.isWin;
+
+      console.log(`  Can Hu: ${canHu}, Win result:`, winResult);
+
+      // If can win, find all possible winning combinations
+      let winCombinations = [];
+      if (canHu) {
+        winCombinations = WinValidator.findWinningCombinations(handWithDiscard, numRevealedSets, tile);
+        console.log(`  Win combinations found: ${winCombinations.length}`, winCombinations);
+      }
 
       // Pong: 3 same tiles (2 from hand + discarded)
       if (matchingTiles.length >= 2) {
@@ -683,13 +763,16 @@ export class MahjongGame {
         }
       }
 
-      if (possibleClaims.length > 0) {
+      // Add to claim options if player can do anything (including Hu)
+      if (possibleClaims.length > 0 || canHu) {
         claimOptions.push({
           playerId: player.id,
           canPong: matchingTiles.length >= 2,
           canGang: matchingTiles.length >= 3,
           canChow: isNextPlayer && isNumberedSuit && possibleClaims.some(c => c.type === 'chow'),
           canShang: isNextPlayer && isNumberedSuit && possibleClaims.some(c => c.type === 'chow'),
+          canHu: canHu,
+          winCombinations: winCombinations,
           isNextPlayer,
           possibleClaims
         });
@@ -698,6 +781,14 @@ export class MahjongGame {
 
     // Check if anyone has any claim options
     const anyoneCanClaim = claimOptions.length > 0;
+
+    console.log(`[CLAIM] Checked ${this.players.length} players for claims on tile ${tile.suit}-${tile.value}`);
+    console.log(`[CLAIM] Claim options found: ${claimOptions.length}`);
+    if (claimOptions.length > 0) {
+      claimOptions.forEach(opt => {
+        console.log(`  Player ${this.players.find(p => p.id === opt.playerId)?.name}: Hu=${opt.canHu}, Pong=${opt.canPong}, Gang=${opt.canGang}, Chow=${opt.canChow}`);
+      });
+    }
 
     // If no one can claim, skip freeze period entirely
     if (!anyoneCanClaim) {
@@ -739,6 +830,7 @@ export class MahjongGame {
           canChow: option.canChow,
           canShang: option.canShang,
           canHu: option.canHu || false,
+          winCombinations: option.winCombinations || [],
           isNextPlayer: option.isNextPlayer,
           possibleClaims: option.possibleClaims,
           timeout: freezeTimeout
@@ -894,6 +986,52 @@ export class MahjongGame {
       return;
     }
 
+    // Check if there are multiple Hu claims (雙嚮/三嚮)
+    const huClaims = [];
+    this.pendingClaims.forEach((claim) => {
+      if (claim.type === 'hu') {
+        huClaims.push(claim);
+      }
+    });
+
+    // If there are multiple Hu claims, handle them all
+    if (huClaims.length > 1) {
+      console.log(`[CLAIM] Multiple Hu claims detected: ${huClaims.length} winners`);
+
+      // Validate all Hu claims
+      const validWinners = [];
+      huClaims.forEach((claim) => {
+        const hand = this.playerHands.get(claim.playerId);
+        const melds = this.melds.get(claim.playerId);
+        const allTiles = [...hand, this.lastDiscardedTile];
+        melds.forEach(meld => {
+          allTiles.push(...meld.tiles);
+        });
+
+        const winResult = WinValidator.isWinningHand(allTiles, this.lastDiscardedTile);
+        if (winResult.isWin) {
+          validWinners.push({ playerId: claim.playerId, winResult });
+        }
+      });
+
+      if (validWinners.length > 0) {
+        // Multiple winners - 雙嚮 or 三嚮
+        const winnerIds = validWinners.map(w => w.playerId);
+        this.pendingClaims.clear();
+
+        this.broadcast({
+          type: 'claim_period_end',
+          payload: {
+            claimedBy: winnerIds,
+            claimType: 'hu'
+          }
+        });
+
+        this.endGameMultipleWinners(validWinners, this.lastDiscardedBy);
+        return;
+      }
+    }
+
     // Find the highest priority claim
     let highestClaim = null;
     this.pendingClaims.forEach((claim) => {
@@ -1001,6 +1139,16 @@ export class MahjongGame {
       }
     }));
 
+    // Check if player can win immediately after claiming (e.g., if they now have 4 melds + 1 pair)
+    const numRevealedSets = melds.length;
+    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
+    if (winResult.isWin) {
+      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming pong!`);
+      // Player wins by claiming (出沖)
+      this.endGame('win_by_discard', playerId, winResult, discardedBy);
+      return;
+    }
+
     // Player who claimed must discard (they now have 17 tiles equivalent with meld)
     this.currentPlayerIndex = this.players.findIndex(p => p.id === playerId);
     this.broadcast({
@@ -1078,6 +1226,16 @@ export class MahjongGame {
       }
     }));
 
+    // Check if player can win immediately after claiming (before drawing replacement tile)
+    const numRevealedSets = melds.length;
+    let winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
+    if (winResult.isWin) {
+      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming gang!`);
+      // Player wins by claiming (出沖)
+      this.endGame('win_by_discard', playerId, winResult, discardedBy);
+      return;
+    }
+
     // Player who claimed gang must draw a replacement tile from the back
     // For now, just draw normally
     const newTile = this.tileManager.drawTile();
@@ -1091,6 +1249,15 @@ export class MahjongGame {
           tilesRemaining: this.tileManager.getRemainingCount()
         }
       }));
+
+      // Check if player can win with the drawn tile (自摸)
+      winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, newTile);
+      if (winResult.isWin) {
+        console.log(`[CLAIM] Player ${player.name} wins by self-draw after gang replacement!`);
+        // Player wins by self-draw (自摸)
+        this.endGame('win_by_self_draw', playerId, winResult);
+        return;
+      }
     }
 
     // Player must discard after gang
@@ -1233,6 +1400,16 @@ export class MahjongGame {
       }
     }));
 
+    // Check if player can win immediately after claiming (e.g., if they now have 4 melds + 1 pair)
+    const numRevealedSets = melds.length;
+    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
+    if (winResult.isWin) {
+      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming chow/shang!`);
+      // Player wins by claiming (出沖)
+      this.endGame('win_by_discard', playerId, winResult, discardedBy);
+      return;
+    }
+
     // Player who claimed must discard
     this.currentPlayerIndex = this.players.findIndex(p => p.id === playerId);
     this.broadcast({
@@ -1244,13 +1421,12 @@ export class MahjongGame {
     });
   }
 
-  // Execute hu claim
+  // Execute hu claim (出沖 - win by discard)
   executeHuClaim(playerId) {
-    // For now, just validate and end game
     const hand = this.playerHands.get(playerId);
     const melds = this.melds.get(playerId);
 
-    const allTiles = [...hand];
+    const allTiles = [...hand, this.lastDiscardedTile];
     melds.forEach(meld => {
       allTiles.push(...meld.tiles);
     });
@@ -1258,7 +1434,9 @@ export class MahjongGame {
     const winResult = WinValidator.isWinningHand(allTiles, this.lastDiscardedTile);
 
     if (winResult.isWin) {
-      this.endGame('win', playerId, winResult);
+      // 出沖 - win by claiming discarded tile
+      // The discarder is the loser
+      this.endGame('win_by_discard', playerId, winResult, this.lastDiscardedBy);
     } else {
       // Invalid hu claim
       const player = this.players.find(p => p.id === playerId);
@@ -1407,11 +1585,22 @@ export class MahjongGame {
     }
   }
 
-  endGame(reason, winnerId = null, winResult = null) {
+  endGame(reason, winnerId = null, winResult = null, loserId = null) {
     this.gameState = 'ended';
 
     const winner = winnerId ? this.players.find(p => p.id === winnerId) : null;
+    const loser = loserId ? this.players.find(p => p.id === loserId) : null;
     const dealerPlayer = this.players[this.dealerIndex];
+
+    // Determine win type
+    let winType = null;
+    if (reason === 'win_by_discard') {
+      winType = '出沖'; // Win by claiming discarded tile
+    } else if (reason === 'win_self_draw') {
+      winType = '自摸'; // Win by self-draw
+    } else if (reason === 'draw') {
+      winType = '和局'; // Draw game
+    }
 
     // Determine next dealer based on Taiwanese Mahjong rules:
     // - If dealer (莊) wins or draw, dealer stays the same
@@ -1420,7 +1609,7 @@ export class MahjongGame {
     let dealerRotated = false;
     let gameEnded = false;
 
-    if (reason === 'win' && winnerId !== dealerPlayer.id) {
+    if ((reason === 'win_by_discard' || reason === 'win_self_draw') && winnerId !== dealerPlayer.id) {
       // Non-dealer won, rotate dealer counter-clockwise
       nextDealerIndex = (this.dealerIndex + 1) % this.players.length;
       dealerRotated = true;
@@ -1450,12 +1639,33 @@ export class MahjongGame {
       }
     }
 
+    // Build player results
+    const playerResults = this.players.map(player => {
+      const isWinner = player.id === winnerId;
+      const isLoser = player.id === loserId;
+      const isDealer = this.players[this.dealerIndex].id === player.id;
+
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        position: this.getPlayerWind(player.id),
+        isWinner: isWinner,
+        isLoser: isLoser,
+        isDealer: isDealer,
+        score: 0, // TODO: Implement scoring system
+        totalScore: 0 // TODO: Track total scores across games
+      };
+    });
+
     this.broadcast({
       type: 'game_ended',
       payload: {
         reason: reason,
+        winType: winType,
         winner: winnerId,
         winnerName: winner?.name,
+        loser: loserId,
+        loserName: loser?.name,
         pattern: winResult?.pattern,
         score: winResult?.score,
         currentDealer: dealerPlayer.id,
@@ -1465,7 +1675,97 @@ export class MahjongGame {
         currentWind: this.currentWind,
         nextRound: nextRound,
         nextWind: nextWind,
-        gameEnded: gameEnded // True if whole game is over (after 北圈北風)
+        gameEnded: gameEnded, // True if whole game is over (after 北圈北風)
+        playerResults: playerResults
+      }
+    });
+
+    // Update state for next game (if not ended)
+    if (!gameEnded) {
+      this.dealerIndex = nextDealerIndex;
+      this.currentRound = nextRound;
+      this.currentWind = nextWind;
+    }
+  }
+
+  // Handle multiple winners (雙嚮/三嚮)
+  endGameMultipleWinners(winners, loserId) {
+    this.gameState = 'ended';
+
+    const loser = loserId ? this.players.find(p => p.id === loserId) : null;
+    const dealerPlayer = this.players[this.dealerIndex];
+    const winnerIds = winners.map(w => w.playerId);
+
+    // Determine win type based on number of winners
+    let winType = '出沖';
+    if (winners.length === 2) {
+      winType = '雙嚮';
+    } else if (winners.length === 3) {
+      winType = '三嚮';
+    }
+
+    // Determine next dealer
+    // For 雙嚮/三嚮 (multiple winners), dealer NEVER rotates regardless of who won
+    // This is a special rule for multiple winner situations
+    let nextDealerIndex = this.dealerIndex;
+    let dealerRotated = false;
+    let gameEnded = false;
+
+    // Dealer stays the same for multiple winners (雙嚮/三嚮)
+
+    // Update 圈/風 based on dealer rotation
+    let nextRound = this.currentRound;
+    let nextWind = this.currentWind;
+
+    if (dealerRotated) {
+      nextWind = this.roundWinds[nextDealerIndex];
+      if (nextDealerIndex === 0) {
+        const currentRoundIndex = this.roundWinds.indexOf(this.currentRound);
+        const nextRoundIndex = currentRoundIndex + 1;
+        if (nextRoundIndex >= 4) {
+          gameEnded = true;
+        } else {
+          nextRound = this.roundWinds[nextRoundIndex];
+        }
+      }
+    }
+
+    // Build player results
+    const playerResults = this.players.map(player => {
+      const isWinner = winnerIds.includes(player.id);
+      const isLoser = player.id === loserId;
+      const isDealer = this.players[this.dealerIndex].id === player.id;
+
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        position: this.getPlayerWind(player.id),
+        isWinner: isWinner,
+        isLoser: isLoser,
+        isDealer: isDealer,
+        score: 0, // TODO: Implement scoring system
+        totalScore: 0
+      };
+    });
+
+    this.broadcast({
+      type: 'game_ended',
+      payload: {
+        reason: 'multiple_winners',
+        winType: winType,
+        winners: winnerIds,
+        winnerNames: winners.map(w => this.players.find(p => p.id === w.playerId)?.name),
+        loser: loserId,
+        loserName: loser?.name,
+        currentDealer: dealerPlayer.id,
+        nextDealer: this.players[nextDealerIndex].id,
+        dealerRotated: dealerRotated,
+        currentRound: this.currentRound,
+        currentWind: this.currentWind,
+        nextRound: nextRound,
+        nextWind: nextWind,
+        gameEnded: gameEnded,
+        playerResults: playerResults
       }
     });
 
