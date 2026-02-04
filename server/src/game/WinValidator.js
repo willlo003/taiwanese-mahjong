@@ -16,6 +16,10 @@ export class WinValidator {
 
     // Filter out bonus tiles (they don't count towards winning patterns)
     const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
+    if (lastTile) {
+      console.log(`[WIN_VALIDATOR] Last tiles:`, `${lastTile.suit}-${lastTile.value}`);
+      nonBonusTiles.push(lastTile)
+    }
     console.log(`[WIN_VALIDATOR] Non-bonus tiles: ${nonBonusTiles.length}`);
 
     // Check Pattern 1: Normal win (5 sets + 1 pair)

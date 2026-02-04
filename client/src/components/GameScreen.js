@@ -17,6 +17,7 @@ function GameScreen({
   onChow,
   onShang,
   dealerIndex = 0,
+  dealerId = null,
   playerWinds = {},
   revealedBonusTiles = {},
   hasDrawn = false,
@@ -60,6 +61,12 @@ function GameScreen({
     return map[wind] || wind;
   };
 
+  // Helper to convert position (0,1,2,3) to Chinese wind (東南西北)
+  const positionToWind = (position) => {
+    const map = { 0: '東', 1: '南', 2: '西', 3: '北' };
+    return map[position] || '';
+  };
+
   // Helper to get phase display text
   const getPhaseDisplay = () => {
     if (gamePhase === 'flower_replacement') {
@@ -74,8 +81,8 @@ function GameScreen({
 
   const isMyTurn = currentPlayer === playerInfo?.playerId;
 
-  // Get dealer player
-  const dealerPlayer = players[dealerIndex];
+  // Get dealer player by ID (not by index, to handle reconnections correctly)
+  const dealerPlayer = dealerId ? players.find(p => p.id === dealerId) : players[dealerIndex];
 
   // Check if we're in the draw/discard phase
   const isDrawDiscardPhase = gamePhase === 'draw_discard';
@@ -354,7 +361,7 @@ function GameScreen({
         <div className="center-area">
           {/* Left Discard (上家) */}
           <div className="discard-area discard-area-left">
-            <span className="discard-area-label">{leftPlayer?.name} ({windToChinese(playerWinds[leftPlayer?.id])}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+            <span className="discard-area-label">{leftPlayer?.name} ({positionToWind(leftPlayer?.position)}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
             <div className="discard-tiles-inner">
               {(discardPiles[leftPlayer?.id] || []).map((tile, idx) => (
                 <Tile key={idx} tile={tile} size="small" />
@@ -366,7 +373,7 @@ function GameScreen({
           <div className="center-column">
             {/* Top Discard (對家) */}
             <div className="discard-area discard-area-top">
-              <span className="discard-area-label">{topPlayer?.name} ({windToChinese(playerWinds[topPlayer?.id])}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+              <span className="discard-area-label">{topPlayer?.name} ({positionToWind(topPlayer?.position)}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
               <div className="discard-tiles-inner">
                 {(discardPiles[topPlayer?.id] || []).map((tile, idx) => (
                   <Tile key={idx} tile={tile} size="small" />
@@ -401,7 +408,7 @@ function GameScreen({
 
             {/* Bottom Discard (自己) */}
             <div className="discard-area discard-area-bottom">
-              <span className="discard-area-label">{playerInfo?.name} ({windToChinese(playerWinds[playerInfo?.playerId])}){playerInfo?.playerId === dealerPlayer?.id && ' 莊'}</span>
+              <span className="discard-area-label">{playerInfo?.name} ({positionToWind(players.find(p => p.id === playerInfo?.playerId)?.position)}){playerInfo?.playerId === dealerPlayer?.id && ' 莊'}</span>
               {(discardPiles[playerInfo?.playerId] || []).map((tile, idx) => (
                 <Tile key={idx} tile={tile} size="small" />
               ))}
@@ -410,7 +417,7 @@ function GameScreen({
 
           {/* Right Discard (下家) */}
           <div className="discard-area discard-area-right">
-            <span className="discard-area-label">{rightPlayer?.name} ({windToChinese(playerWinds[rightPlayer?.id])}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+            <span className="discard-area-label">{rightPlayer?.name} ({positionToWind(rightPlayer?.position)}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
             <div className="discard-tiles-inner">
               {(discardPiles[rightPlayer?.id] || []).map((tile, idx) => (
                 <Tile key={idx} tile={tile} size="small" />
@@ -509,6 +516,7 @@ function GameScreen({
             <button
               className="action-btn action-btn-hu"
               onClick={() => {
+                console.log('selfDrawWinCombinations', selfDrawWinCombinations);
                 if (selfDrawWinCombinations && selfDrawWinCombinations.length > 0) {
                   // Show popup to choose combination
                   setShowSelfDrawWinPopup(true);
@@ -518,9 +526,9 @@ function GameScreen({
                 }
               }}
               disabled={!canSelfDrawWin}
-              title={canSelfDrawWin ? '自摸' : ''}
+              title='自摸'
             >
-              食 {canSelfDrawWin && '(自摸)'}
+              自摸
             </button>
             <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
           </div>
@@ -783,6 +791,18 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
               const huClaim = { type: 'hu', tiles: [lastDiscardedTile], combination: combo, combinationIndex: idx };
               // Use displayTiles which shows the actual set/pair that the last tile completes
               const tilesToShow = combo.displayTiles || combo.pairTiles || [];
+              // Determine the role text - use 眼 for pair, 同子 for pong, 順子 for chow
+              let roleText = '';
+              if (combo.lastTileRole === 'pair') {
+                roleText = '眼';
+              } else if (combo.lastTileRole === 'pong') {
+                roleText = '同子';
+              } else if (combo.lastTileRole === 'chow') {
+                roleText = '順子';
+              } else {
+                roleText = '組';
+              }
+
               return (
                 <button
                   key={`hu-${idx}`}
@@ -800,10 +820,7 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
                       <Tile tile={lastDiscardedTile} size="small" />
                     )}
                   </div>
-                  <span className="claim-option-info">
-                    {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
-                    {combo.lastTileRole === 'pair' ? ' (對子)' : combo.lastTileRole === 'pong' ? ' (碰)' : combo.lastTileRole === 'chow' ? ' (順子)' : ' (組)'}
-                  </span>
+                  <span className="claim-option-info">{roleText}</span>
                 </button>
               );
             })
@@ -840,54 +857,73 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
 
 // Self-Draw Win Popup Component
 function SelfDrawWinPopup({ combinations, drawnTile, onConfirm, onCancel }) {
-  const [selectedCombination, setSelectedCombination] = useState(0);
+  const [selectedCombination, setSelectedCombination] = useState(null);
 
-  const renderCombinationInfo = (combo) => {
-    if (!combo) return null;
+  const handleCombinationClick = (idx) => {
+    setSelectedCombination(idx);
+  };
 
-    return (
-      <div className="win-combination-info">
-        <div className="win-combination-pattern">
-          {combo.pattern === 'standard' ? '一般胡' : '嚦咕嚦咕'}
-        </div>
-        <div className="win-combination-role">
-          最後一張: {combo.lastTileRole === 'pair' ? '對子' : combo.lastTileRole === 'pong' ? '碰' : '順子'}
-        </div>
-        {drawnTile && (
-          <div className="win-combination-tile">
-            <span>胡牌張:</span>
-            <Tile tile={drawnTile} size="small" />
-          </div>
-        )}
-      </div>
-    );
+  const handleConfirm = () => {
+    // If only one combination, auto-select it
+    if (combinations.length === 1 || selectedCombination !== null) {
+      onConfirm();
+    }
   };
 
   return (
     <div className="claim-popup-overlay">
       <div className="claim-popup">
         <div className="claim-popup-header">
-          <h3>自摸 - 選擇胡牌組合</h3>
+          <span className="claim-popup-title">自摸</span>
         </div>
 
-        <div className="win-combinations-list">
-          {combinations.map((combo, idx) => (
-            <button
-              key={idx}
-              className={`win-combination-btn ${selectedCombination === idx ? 'win-combination-selected' : ''}`}
-              onClick={() => setSelectedCombination(idx)}
-            >
-              <span className="win-combination-number">組合 {idx + 1}</span>
-              {renderCombinationInfo(combo)}
-            </button>
-          ))}
+        <div className="claim-options-list">
+          {combinations.map((combo, idx) => {
+            const tilesToShow = combo.displayTiles || combo.pairTiles || [];
+            // Determine the role text - use 眼 for pair, 同子 for pong, 順子 for chow
+            let roleText = '';
+            if (combo.lastTileRole === 'pair') {
+              roleText = '眼';
+            } else if (combo.lastTileRole === 'pong') {
+              roleText = '同子';
+            } else if (combo.lastTileRole === 'chow') {
+              roleText = '順子';
+            } else {
+              roleText = '組';
+            }
+
+            return (
+              <button
+                key={idx}
+                className={`claim-option-btn claim-option-hu ${selectedCombination === idx ? 'claim-option-selected' : ''}`}
+                onClick={() => handleCombinationClick(idx)}
+              >
+                <span className="claim-option-label">自摸</span>
+                <div className="claim-tiles-preview">
+                  {tilesToShow.map((tile, tileIdx) => (
+                    <Tile
+                      key={tileIdx}
+                      tile={tile}
+                      size="small"
+                      className={drawnTile && tile.suit === drawnTile.suit && tile.value === drawnTile.value ? 'winning-tile' : ''}
+                    />
+                  ))}
+                </div>
+                <span className="claim-option-info">{roleText}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="win-popup-actions">
-          <button className="claim-pass-btn" onClick={onCancel}>
+        <div className="self-draw-popup-actions">
+          <button className="self-draw-cancel-btn" onClick={onCancel}>
             取消
           </button>
-          <button className="claim-option-btn claim-option-hu" onClick={onConfirm}>
+          <button
+            className="self-draw-confirm-btn"
+            onClick={handleConfirm}
+            disabled={combinations.length > 1 && selectedCombination === null}
+          >
             確認胡牌
           </button>
         </div>

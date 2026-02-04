@@ -20,6 +20,7 @@ function App() {
   const [melds, setMelds] = useState({});
   const [claimOptions, setClaimOptions] = useState(null);
   const [dealerIndex, setDealerIndex] = useState(0);
+  const [dealerId, setDealerId] = useState(null); // Track dealer by player ID, not index
   const [playerWinds, setPlayerWinds] = useState({});
   const [revealedBonusTiles, setRevealedBonusTiles] = useState({});
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -59,10 +60,15 @@ function App() {
         break;
 
       case 'game_started':
+        console.log('[CLIENT] game_started - dealer:', data.payload.dealer, 'dealerIndex:', data.payload.dealerIndex);
         setGameState('playing');
         setCurrentPlayer(data.payload.currentPlayer);
         if (data.payload.dealerIndex !== undefined) {
           setDealerIndex(data.payload.dealerIndex);
+        }
+        if (data.payload.dealer) {
+          setDealerId(data.payload.dealer); // Store dealer by player ID
+          console.log('[CLIENT] Set dealerId to:', data.payload.dealer);
         }
         if (data.payload.playerWinds) {
           setPlayerWinds(data.payload.playerWinds);
@@ -73,7 +79,36 @@ function App() {
         if (data.payload.currentWind) {
           setCurrentWind(data.payload.currentWind);
         }
+        // Clear discard piles and melds for new game
+        if (data.payload.discardPiles !== undefined) {
+          setDiscardPiles(data.payload.discardPiles);
+        }
+        if (data.payload.melds !== undefined) {
+          setMelds(data.payload.melds);
+        }
         soundManager.gameStart();
+        break;
+
+      case 'game_state_sync':
+        // Reconnection: sync all game state
+        console.log('[CLIENT] game_state_sync - reconnecting to game in progress');
+        setGameState('playing');
+        setGamePhase(data.payload.gamePhase);
+        setHand(data.payload.hand);
+        setDiscardPiles(data.payload.allDiscardPiles);
+        setMelds(data.payload.allMelds);
+        setRevealedBonusTiles(data.payload.allRevealedBonusTiles);
+        setCurrentPlayer(data.payload.currentPlayer);
+        setDealerIndex(data.payload.dealerIndex);
+        setDealerId(data.payload.dealer);
+        setPlayerWinds(data.payload.playerWinds);
+        setCurrentRound(data.payload.currentRound);
+        setCurrentWind(data.payload.currentWind);
+        setTilesRemaining(data.payload.tilesRemaining);
+        setLastDiscardedTile(data.payload.lastDiscardedTile);
+        setLastDiscardedBy(data.payload.lastDiscardedBy);
+        setClaimPeriodActive(data.payload.claimWindowOpen);
+        console.log('[CLIENT] ✅ Game state synced after reconnection');
         break;
 
       case 'hand_update':
@@ -372,6 +407,8 @@ function App() {
   const handleDiscard = (tile) => {
     sendMessage({ type: 'action', payload: { type: 'discard', tile } });
     setDrawnTile(null); // Clear drawn tile after discarding
+    setCanSelfDrawWin(false); // Clear self-draw win state when player chooses to discard
+    setSelfDrawWinCombinations([]); // Clear win combinations
     soundManager.tileClick();
   };
 
@@ -451,6 +488,7 @@ function App() {
     setRevealedBonusTiles({});
     setCurrentPlayer(null);
     setDealerIndex(0);
+    setDealerId(null);
     setTilesRemaining(144);
     setPlayerHandSizes({});
     setCurrentRound('east');
@@ -465,6 +503,8 @@ function App() {
     setReadyPlayers([]);
     setGameState('lobby');
   };
+
+
 
   return (
     <div className="App">
@@ -506,6 +546,7 @@ function App() {
             onChow={handleChow}
             onShang={handleShang}
             dealerIndex={dealerIndex}
+            dealerId={dealerId}
             playerWinds={playerWinds}
             revealedBonusTiles={revealedBonusTiles}
             hasDrawn={hasDrawn}

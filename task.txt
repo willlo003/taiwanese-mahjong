@@ -1,0 +1,5 @@
+1, 雙嚮
+2, 暗槓
+3, 聽
+4, popup no overlap
+5, reflash

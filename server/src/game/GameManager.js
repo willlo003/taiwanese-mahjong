@@ -47,11 +47,20 @@ export class GameManager {
   }
 
   handleJoin(ws, payload) {
-    const { name } = payload;
+    const { name, isDebugMode } = payload;
 
     // Validate name
     if (!name || name.trim().length === 0) {
       ws.send(JSON.stringify({ type: 'error', message: 'Name is required' }));
+      return;
+    }
+
+    const trimmedName = name.trim();
+
+    // Check if name is already taken
+    const nameTaken = Array.from(this.players.values()).some(p => p.name === trimmedName);
+    if (nameTaken) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Name is already taken' }));
       return;
     }
 
@@ -61,26 +70,20 @@ export class GameManager {
       return;
     }
 
-    // Check if name is already taken
-    const nameTaken = Array.from(this.players.values()).some(p => p.name === name.trim());
-    if (nameTaken) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Name is already taken' }));
-      return;
-    }
-
-    // Add player without assigning a seat (position = null)
+    // Create new player
     const playerId = uuidv4();
     const player = {
       id: playerId,
-      name: name.trim(),
+      name: trimmedName,
       ws,
       ready: false,
-      position: null // No seat assigned initially
+      position: null
     };
 
     this.players.set(ws, player);
 
     // Send success to the joining player
+    console.log(`[JOIN] Player ${trimmedName} joined with ID: ${playerId}, position: ${player.position}`);
     ws.send(JSON.stringify({
       type: 'joined',
       payload: {
@@ -93,7 +96,15 @@ export class GameManager {
     // Broadcast updated player list to all players
     this.broadcastPlayerList();
 
-    console.log(`Player joined: ${name} (${this.players.size}/${this.maxPlayers})`);
+    console.log(`Player joined: ${trimmedName} (${this.players.size}/${this.maxPlayers})`);
+
+    // If debug mode, auto-start the game after a short delay
+    if (isDebugMode) {
+      console.log('[DEBUG MODE] Auto-starting game in 1 second...');
+      setTimeout(() => {
+        this.handleStartGame(ws);
+      }, 1000);
+    }
   }
 
   handleSelectSeat(ws, payload) {
@@ -206,23 +217,23 @@ export class GameManager {
     const player = this.players.get(ws);
     if (player) {
       console.log(`Player disconnected: ${player.name}`);
-      const disconnectedPlayerName = player.name;
       this.players.delete(ws);
 
-      // Reset game if a player disconnects
+      // If game is in progress, end it
       if (this.game) {
         this.game = null;
 
-        // Reset all remaining players' seats and ready status
+        // Reset all players' positions and ready status
         this.players.forEach((p) => {
           p.position = null;
           p.ready = false;
         });
 
+        // Broadcast game ended
         this.broadcast({
           type: 'game_ended',
           payload: {
-            reason: `${disconnectedPlayerName} disconnected`,
+            reason: `${player.name} disconnected`,
             resetToLobby: true
           }
         });
@@ -261,32 +272,47 @@ export class GameManager {
     }
   }
 
+
+
   allPlayersReady() {
-    const playerList = Array.from(this.players.values());
+    const realPlayers = Array.from(this.players.values());
+
     // Need exactly 4 players, all with seats (position 0-3), all ready
-    const seatedPlayers = playerList.filter(p => p.position !== null && p.position !== undefined);
+    const seatedPlayers = realPlayers.filter(p => p.position !== null && p.position !== undefined);
     return seatedPlayers.length === 4 && seatedPlayers.every(p => p.ready);
   }
 
   startGame() {
     console.log('Starting game with 4 players...');
 
-    // Sort players by position (0=東, 1=南, 2=西, 3=北)
+    // Get all players and sort by position (0=東, 1=南, 2=西, 3=北)
     // This ensures dealerIndex=0 corresponds to position 0 (東)
-    const playerList = Array.from(this.players.values()).sort((a, b) => a.position - b.position);
-    console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position})`));
+    const realPlayers = Array.from(this.players.values());
+    const playerList = realPlayers.sort((a, b) => a.position - b.position);
+    console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position}, id:${p.id})`));
 
     this.game = new MahjongGame(playerList, this.broadcast.bind(this));
     this.game.start();
   }
 
   broadcastPlayerList() {
-    const playerList = Array.from(this.players.values()).map(p => ({
+    const realPlayers = Array.from(this.players.values());
+
+    const playerList = realPlayers.map(p => ({
       id: p.id,
       name: p.name,
       position: p.position,
       ready: p.ready
     }));
+
+    // Sort by position (0=東, 1=南, 2=西, 3=北)
+    // Players without position (null) go to the end
+    playerList.sort((a, b) => {
+      if (a.position === null && b.position === null) return 0;
+      if (a.position === null) return 1;
+      if (b.position === null) return -1;
+      return a.position - b.position;
+    });
 
     this.broadcast({
       type: 'player_list',
@@ -297,6 +323,8 @@ export class GameManager {
   broadcast(message) {
     const messageStr = JSON.stringify(message);
     this.players.forEach((player) => {
+      if (!player.ws) return;
+
       if (player.ws.readyState === 1) { // WebSocket.OPEN
         player.ws.send(messageStr);
       }

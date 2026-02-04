@@ -1334,6 +1334,12 @@
   transform: scale(0.9);
 }
 
+.claim-tiles-preview .winning-tile {
+  box-shadow: 0 0 8px rgba(241, 196, 15, 0.8);
+  border: 2px solid #f1c40f;
+  border-radius: 4px;
+}
+
 .claim-option-info {
   font-size: 0.85rem;
   color: #bdc3c7;
@@ -1343,6 +1349,83 @@
 
 .claim-option-hu .claim-option-info {
   color: #f39c12;
+}
+
+.claim-popup-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.claim-popup-actions button {
+  flex: 1;
+}
+
+.claim-popup-actions .claim-option-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #555 0%, #444 100%);
+}
+
+.claim-popup-actions .claim-option-btn:disabled:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Self-Draw Win Popup Actions */
+.self-draw-popup-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.self-draw-cancel-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #666 0%, #444 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.self-draw-cancel-btn:hover {
+  background: linear-gradient(135deg, #777 0%, #555 100%);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.02);
+}
+
+.self-draw-confirm-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  border: 2px solid rgba(231, 76, 60, 0.5);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.self-draw-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f75c4c 0%, #d0493b 100%);
+  border-color: rgba(231, 76, 60, 0.8);
+  transform: scale(1.02);
+}
+
+.self-draw-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #555 0%, #444 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.self-draw-confirm-btn:disabled:hover {
+  transform: none;
 }
 
 /* Leave Confirmation Popup */
@@ -1506,6 +1589,27 @@
   color: #ecf0f1;
 }
 
+.win-combination-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #ecf0f1;
+}
+
+.win-combination-tiles-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.win-combination-tiles-group .winning-tile {
+  box-shadow: 0 0 8px rgba(241, 196, 15, 0.8);
+  border: 2px solid #f1c40f;
+  border-radius: 4px;
+}
+
 .win-popup-actions {
   display: flex;
   gap: 10px;
@@ -1544,7 +1648,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto; /* Allow scrolling if content exceeds */
+  padding: 8px; /* Add padding for scroll area */
 }
 
 .result-popup {
@@ -1553,15 +1658,16 @@
   border-radius: 16px;
   padding: 12px 16px;
   width: 100%;
-  height: 100%;
+  max-height: 100%; /* Allow popup to shrink if needed */
   box-sizing: border-box;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   color: #fff;
   text-align: center;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
+  gap: 8px; /* Add gap between sections */
+  overflow-y: auto; /* Allow vertical scrolling */
+  overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
 .result-popup-wintype {
@@ -1592,51 +1698,57 @@
 }
 
 .result-popup-players {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 4px 0;
-  padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 6px;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
 }
 
 .result-popup-player {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  padding: 5px 8px;
+  justify-content: center;
+  padding: 8px 6px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.05);
   font-size: 13px;
+  gap: 4px;
+  min-height: 70px;
 }
 
 .result-popup-player.winner {
   background: rgba(46, 204, 113, 0.2);
-  border: 1px solid #2ecc71;
+  border: 2px solid #2ecc71;
 }
 
 .result-popup-player.loser {
   background: rgba(231, 76, 60, 0.2);
-  border: 1px solid #e74c3c;
+  border: 2px solid #e74c3c;
 }
 
 .result-player-name {
   font-weight: bold;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  flex-direction: column;
+  text-align: center;
 }
 
 .result-player-position {
   color: #95a5a6;
+  font-size: 14px;
+  font-weight: bold;
 }
 
 .result-player-ready {
   color: #2ecc71;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .result-popup-next {
@@ -1704,5 +1816,24 @@
 .result-leave-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(149, 165, 166, 0.4);
+}
+
+/* Custom scrollbar for result popup */
+.result-popup::-webkit-scrollbar {
+  width: 8px;
+}
+
+.result-popup::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.result-popup::-webkit-scrollbar-thumb {
+  background: rgba(233, 69, 96, 0.5);
+  border-radius: 4px;
+}
+
+.result-popup::-webkit-scrollbar-thumb:hover {
+  background: rgba(233, 69, 96, 0.7);
 }
 
