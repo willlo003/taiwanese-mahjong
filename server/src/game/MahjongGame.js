@@ -63,7 +63,8 @@ export class MahjongGame {
         currentPlayer: this.players[this.currentPlayerIndex].id,
         phase: this.gamePhase,
         discardPiles: {}, // Clear discard piles for new game
-        melds: {} // Clear melds for new game
+        melds: {}, // Clear melds for new game
+        revealedBonusTiles: {} // Clear bonus tiles for new game
       }
     });
 
@@ -163,8 +164,8 @@ export class MahjongGame {
       { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
       { suit: 'dragon', value: 'red' },   // 中
       { suit: 'dragon', value: 'red' },   // 中
-      { suit: 'dragon', value: 'green' }, // 發 (pair)
-      { suit: 'dragon', value: 'green' }  // 發
+      { suit: 'dot', value: 6 },
+      { suit: 'dot', value: 5 },  // 五筒
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
@@ -194,10 +195,6 @@ export class MahjongGame {
 
     // Dealer (莊) gets 17 tiles, others get 16 (Taiwanese Mahjong)
     this.players.forEach((player, index) => {
-      console.log("omgomg")
-      console.log("player: ", player)
-      console.log("index: ", index)
-      console.log("omgomg")
       const hand = [];
       const tileCount = index === this.dealerIndex ? 17 : 16;
 
@@ -441,8 +438,10 @@ export class MahjongGame {
     let selfDrawWinCombinations = [];
     if (canSelfDrawWin) {
       // Use the full dealer hand (which includes the last tile) for finding combinations
-      selfDrawWinCombinations = WinValidator.findWinningCombinations(dealerHand, numRevealedSets, lastTile);
-      console.log(`[天胡] Found ${selfDrawWinCombinations.length} winning combinations`);
+      const allCombinations = WinValidator.findWinningCombinations(dealerHand, numRevealedSets, lastTile);
+      // Deduplicate win combinations
+      selfDrawWinCombinations = this.deduplicateWinCombinations(allCombinations);
+      console.log(`[天胡] Found ${allCombinations.length} winning combinations (${selfDrawWinCombinations.length} unique)`);
     }
 
     // Set the last tile as the "drawn tile" for the dealer's first turn
@@ -695,8 +694,10 @@ export class MahjongGame {
     if (canSelfDrawWin) {
       // Create a temporary hand that includes the drawn tile for finding combinations
       const handWithDrawnTile = [...hand, tile];
-      selfDrawWinCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+      const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
+      // Deduplicate win combinations
+      selfDrawWinCombinations = this.deduplicateWinCombinations(allCombinations);
+      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${allCombinations.length} combinations (${selfDrawWinCombinations.length} unique)!`);
     }
 
     // Now add the non-bonus tile to hand
@@ -853,6 +854,36 @@ export class MahjongGame {
     }
   }
 
+  // Helper function to deduplicate claim combinations based on tile sets
+  deduplicateClaims(claims) {
+    const seen = new Set();
+    return claims.filter(claim => {
+      // Create a unique key based on claim type and sorted tiles
+      const tiles = claim.tiles || claim.displayTiles || [];
+      const key = claim.type + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // Helper function to deduplicate win combinations based on displayTiles
+  deduplicateWinCombinations(combinations) {
+    const seen = new Set();
+    return combinations.filter(combo => {
+      // Create a unique key based on lastTileRole and displayTiles
+      const tiles = combo.displayTiles || combo.pairTiles || [];
+      const key = combo.lastTileRole + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
   checkClaimActions(tile, discardedBy) {
     // Give other players a chance to claim the tile
     // Priority order (highest to lowest): 食(hu) -> 槓(gang) -> 碰(pong) -> 上(chow)
@@ -902,8 +933,10 @@ export class MahjongGame {
       if (canHu) {
         // Create a temporary hand that includes the discarded tile for finding combinations
         const handWithDiscardedTile = [...hand, tile];
-        winCombinations = WinValidator.findWinningCombinations(handWithDiscardedTile, numRevealedSets, tile);
-        console.log(`  Win combinations found: ${winCombinations.length}`, winCombinations);
+        const allWinCombinations = WinValidator.findWinningCombinations(handWithDiscardedTile, numRevealedSets, tile);
+        // Deduplicate win combinations
+        winCombinations = this.deduplicateWinCombinations(allWinCombinations);
+        console.log(`  Win combinations found: ${allWinCombinations.length} (${winCombinations.length} unique)`, winCombinations);
       }
 
       // Pong: 3 same tiles (2 from hand + discarded)
@@ -985,16 +1018,19 @@ export class MahjongGame {
 
       // Add to claim options if player can do anything (including Hu)
       if (possibleClaims.length > 0 || canHu) {
+        // Deduplicate possible claims (remove duplicate combinations)
+        const uniquePossibleClaims = this.deduplicateClaims(possibleClaims);
+
         claimOptions.push({
           playerId: player.id,
           canPong: matchingTiles.length >= 2,
           canGang: matchingTiles.length >= 3,
-          canChow: isNextPlayer && isNumberedSuit && possibleClaims.some(c => c.type === 'chow'),
-          canShang: isNextPlayer && isNumberedSuit && possibleClaims.some(c => c.type === 'chow'),
+          canChow: isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
+          canShang: isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
           canHu: canHu,
           winCombinations: winCombinations,
           isNextPlayer,
-          possibleClaims
+          possibleClaims: uniquePossibleClaims
         });
       }
     });
@@ -1094,20 +1130,9 @@ export class MahjongGame {
     // Remove from passed set if they had passed before
     this.playersPassed.delete(playerId);
 
-    // If this is a hu claim (highest priority), resolve immediately
-    // No need to wait for freeze timer since hu has highest priority
-    if (claimType === 'hu') {
-      console.log(`[CLAIM] Hu claim registered, resolving immediately`);
-      // Clear the freeze timer
-      if (this.claimFreezeTimer) {
-        clearTimeout(this.claimFreezeTimer);
-        this.claimFreezeTimer = null;
-      }
-      // Use setTimeout to allow the claim_registered response to be sent first
-      setTimeout(() => {
-        this.resolveClaims();
-      }, 100);
-    }
+    // Don't resolve immediately - wait for freeze period to end
+    // This allows multiple players to claim 食 for 雙響/三響
+    console.log(`[CLAIM] ${claimType} claim registered from ${playerId}, waiting for freeze period to end`);
 
     return true;
   }
@@ -1784,8 +1809,10 @@ export class MahjongGame {
     if (canSelfDrawWin) {
       // Create a temporary hand that includes the drawn tile for finding combinations
       const handWithDrawnTile = [...hand, tile];
-      selfDrawWinCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+      const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
+      // Deduplicate win combinations
+      selfDrawWinCombinations = this.deduplicateWinCombinations(allCombinations);
+      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${allCombinations.length} combinations (${selfDrawWinCombinations.length} unique)!`);
     }
 
     // Add the non-bonus tile to hand
@@ -1996,35 +2023,25 @@ export class MahjongGame {
 
     // Determine next dealer
     // For 雙嚮/三嚮 (multiple winners), dealer NEVER rotates regardless of who won
-    // This is a special rule for multiple winner situations
+    // Also, 圈 and 風 stay the same - the game state is completely frozen
     let nextDealerIndex = this.dealerIndex;
     let dealerRotated = false;
     let gameEnded = false;
 
     // Dealer stays the same for multiple winners (雙嚮/三嚮)
-
-    // Update 圈/風 based on dealer rotation
+    // 圈 and 風 also stay the same
     let nextRound = this.currentRound;
     let nextWind = this.currentWind;
 
-    if (dealerRotated) {
-      nextWind = this.roundWinds[nextDealerIndex];
-      if (nextDealerIndex === 0) {
-        const currentRoundIndex = this.roundWinds.indexOf(this.currentRound);
-        const nextRoundIndex = currentRoundIndex + 1;
-        if (nextRoundIndex >= 4) {
-          gameEnded = true;
-        } else {
-          nextRound = this.roundWinds[nextRoundIndex];
-        }
-      }
-    }
+    console.log(`[END_GAME_MULTI] ${winType}: Dealer stays at ${dealerPlayer.name}, 圈=${nextRound}, 風=${nextWind}`);
 
-    // Build player results
+    // Build player results with revealed hands
     const playerResults = this.players.map(player => {
       const isWinner = winnerIds.includes(player.id);
       const isLoser = player.id === loserId;
       const isDealer = this.players[this.dealerIndex].id === player.id;
+      const hand = this.playerHands.get(player.id) || [];
+      const playerMelds = this.melds.get(player.id) || [];
 
       return {
         playerId: player.id,
@@ -2034,8 +2051,16 @@ export class MahjongGame {
         isLoser: isLoser,
         isDealer: isDealer,
         score: 0, // TODO: Implement scoring system
-        totalScore: 0
+        totalScore: 0,
+        hand: hand, // Reveal hand tiles
+        melds: playerMelds // Include melds
       };
+    });
+
+    // Build all player hands map for easy access
+    const allPlayerHands = {};
+    this.players.forEach(player => {
+      allPlayerHands[player.id] = this.playerHands.get(player.id) || [];
     });
 
     this.broadcast({
@@ -2055,7 +2080,8 @@ export class MahjongGame {
         nextRound: nextRound,
         nextWind: nextWind,
         gameEnded: gameEnded,
-        playerResults: playerResults
+        playerResults: playerResults,
+        allPlayerHands: allPlayerHands // Reveal all hands
       }
     });
 

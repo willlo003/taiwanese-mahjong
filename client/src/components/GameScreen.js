@@ -584,28 +584,60 @@ function GameScreen({
 
 // Result Popup Component - overlays center area when game ends
 function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, onReady, onLeave, windToChinese }) {
+  const [isMinimized, setIsMinimized] = useState(false);
+
   if (!gameResult) return null;
 
-  const { winType, winnerName, loserName, pattern, playerResults, nextRound, nextWind, gameEnded } = gameResult;
+  const { winType, winnerName, winnerNames, loserName, pattern, playerResults, nextRound, nextWind, gameEnded } = gameResult;
+
+  // Handle both single winner (winnerName) and multiple winners (winnerNames)
+  const displayWinnerNames = winnerNames || (winnerName ? [winnerName] : []);
+
+  // If minimized, show only a small toggle button
+  if (isMinimized) {
+    return (
+      <div className="result-popup-minimized">
+        <button
+          className="result-popup-toggle-btn"
+          onClick={() => setIsMinimized(false)}
+          title="顯示結果"
+        >
+          📊 顯示結果
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="result-popup-overlay">
       <div className="result-popup">
-        <div className="result-popup-wintype">
-          {winType || '和局'}
+        <div className="result-popup-header-row">
+          <div className="result-popup-info-row">
+            <span className="result-popup-wintype">
+              {winType || '和局'}
+            </span>
+
+            {displayWinnerNames.length > 0 && (
+              <span className="result-popup-winner">
+                贏家: {displayWinnerNames.join(', ')}
+              </span>
+            )}
+
+            {loserName && (winType === '出沖' || winType === '雙響' || winType === '三響') && (
+              <span className="result-popup-loser">
+                出沖: {loserName}
+              </span>
+            )}
+          </div>
+
+          <button
+            className="result-popup-hide-btn"
+            onClick={() => setIsMinimized(true)}
+            title="隱藏結果"
+          >
+            ✕
+          </button>
         </div>
-
-        {winnerName && (
-          <div className="result-popup-winner">
-            贏家: {winnerName}
-          </div>
-        )}
-
-        {loserName && winType === '出沖' && (
-          <div className="result-popup-loser">
-            出沖: {loserName}
-          </div>
-        )}
 
         <div className="result-popup-players">
           {playerResults && playerResults.map((result) => (

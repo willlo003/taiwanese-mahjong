@@ -79,12 +79,15 @@ function App() {
         if (data.payload.currentWind) {
           setCurrentWind(data.payload.currentWind);
         }
-        // Clear discard piles and melds for new game
+        // Clear discard piles, melds, and bonus tiles for new game
         if (data.payload.discardPiles !== undefined) {
           setDiscardPiles(data.payload.discardPiles);
         }
         if (data.payload.melds !== undefined) {
           setMelds(data.payload.melds);
+        }
+        if (data.payload.revealedBonusTiles !== undefined) {
+          setRevealedBonusTiles(data.payload.revealedBonusTiles);
         }
         soundManager.gameStart();
         break;
