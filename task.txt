@@ -1,7 +1,8 @@
 1, 雙嚮 x
 2, 暗槓 x
-3, 聽
+3, 聽 x
 4，搶槓
 5, popup no overlap x
 6, reflash
 7, 換牌
+8, 雙嚮 win combination

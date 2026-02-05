@@ -2222,3 +2222,57 @@
   z-index: 1;
 }
 
+/* 聽 discard tile - rotated 90 degrees to indicate 聽 declaration */
+.ting-discard-tile {
+  transform: rotate(90deg);
+  margin: 0 4px;
+}
+
+/* Left player 聽 tile: existing 90deg + additional 90deg = 180deg */
+.discard-area-left .ting-discard-tile {
+  transform: rotate(180deg);
+  margin: -4px 0;
+}
+
+/* Right player 聽 tile: existing -90deg + additional 90deg = 0deg */
+.discard-area-right .ting-discard-tile {
+  transform: rotate(0deg);
+  margin: -4px 0;
+}
+
+/* 聽 indicator styling */
+.ting-indicator {
+  color: #ff6b6b;
+  font-weight: bold;
+  animation: ting-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ting-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Active 聽 button styling (already declared 聽) */
+.action-btn-active {
+  background: linear-gradient(135deg, #4CAF50, #45a049) !important;
+  color: white !important;
+  border-color: #45a049 !important;
+}
+
+/* 聽 toggle enabled (before discard) */
+.action-btn-ting-enabled {
+  background: linear-gradient(135deg, #ff9800, #f57c00) !important;
+  color: white !important;
+  border-color: #f57c00 !important;
+  animation: ting-toggle-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ting-toggle-pulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 152, 0, 0.5); }
+  50% { box-shadow: 0 0 15px rgba(255, 152, 0, 0.8); }
+}
+

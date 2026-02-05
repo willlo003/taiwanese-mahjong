@@ -36,6 +36,8 @@ export class MahjongGame {
     this.playersWithClaimOptions = new Set(); // Track which players have claim options
     this.playersPassed = new Set(); // Track which players have passed on claiming
     this.readyPlayers = new Set(); // Track which players are ready for next game
+    this.tingStatus = new Map(); // Track which players are in 聽 status
+    this.tingTileIndices = new Map(); // Track which tile index in discard pile was the 聽 declaration tile
   }
 
   start() {
@@ -120,6 +122,8 @@ export class MahjongGame {
     this.playersWithClaimOptions.clear();
     this.playersPassed.clear();
     this.readyPlayers.clear();
+    this.tingStatus.clear();
+    this.tingTileIndices.clear();
 
     // Reset tile manager
     this.tileManager = new TileManager();
@@ -500,6 +504,12 @@ export class MahjongGame {
       return;
     }
 
+    // Handle ting (聽) action - player declares ready hand
+    if (action.type === 'ting') {
+      this.handleTing(playerId, action.tile);
+      return;
+    }
+
     // Verify it's the player's turn for non-claim actions
     if (playerIndex !== this.currentPlayerIndex) {
       player.ws.send(JSON.stringify({
@@ -613,6 +623,9 @@ export class MahjongGame {
         }
       });
     } else {
+      // Check if player is in 聽 status - they cannot gang
+      const isPlayerTing = this.tingStatus.get(playerId);
+
       // Normal draw - send updated hand to the player
       player.ws.send(JSON.stringify({
         type: 'tile_drawn',
@@ -622,8 +635,10 @@ export class MahjongGame {
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
           selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
+          canSelfGang: isPlayerTing ? false : canSelfGang, // 聽 players cannot gang
+          selfGangCombinations: isPlayerTing ? [] : selfGangCombinations,
+          isTing: isPlayerTing || false,
+          mustDiscardDrawnTile: isPlayerTing || false // 聽 players must discard the drawn tile
         }
       }));
 
@@ -700,6 +715,90 @@ export class MahjongGame {
         tile: tile,
         discardPile: discardPile,
         handSize: hand.length
+      }
+    });
+
+    // Check if other players can pong/gang/chow/hu
+    this.checkClaimActions(tile, playerId);
+  }
+
+  // Handle 聽 (ting) action - player declares ready hand and discards
+  handleTing(playerId, tile) {
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    console.log('============================================================');
+    console.log(`[TING] ${player.name} is declaring 聽 and discarding a tile...`);
+
+    // Check if player is already in 聽 status
+    if (this.tingStatus.get(playerId)) {
+      console.log(`[TING] ❌ ${player.name} is already in 聽 status`);
+      player.ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Already in 聽 status'
+      }));
+      return;
+    }
+
+    const hand = this.playerHands.get(playerId);
+
+    // Check if hand size is valid for discarding: 3n + 2 where n = 0-5
+    const isValidHandSize = hand.length >= 2 && hand.length <= 17 && (hand.length - 2) % 3 === 0;
+    if (!isValidHandSize) {
+      console.log(`[TING] ❌ ${player.name} cannot declare 聽 - invalid hand size (${hand.length} tiles)`);
+      player.ws.send(JSON.stringify({
+        type: 'error',
+        message: `Cannot declare 聽 - invalid hand size (${hand.length} tiles)`
+      }));
+      return;
+    }
+
+    const tileIndex = hand.findIndex(t => t.id === tile.id);
+
+    if (tileIndex === -1) {
+      console.log(`[TING] ❌ ${player.name} tried to discard tile not in hand: ${tile.suit}-${tile.value}`);
+      return;
+    }
+
+    // Remove tile from hand
+    hand.splice(tileIndex, 1);
+
+    // Add to discard pile with rotated flag
+    const discardPile = this.discardPiles.get(playerId);
+    const tingTile = { ...tile, rotated: true }; // Mark tile as rotated for 聽 declaration
+    discardPile.push(tingTile);
+
+    // Set 聽 status for this player
+    this.tingStatus.set(playerId, true);
+    this.tingTileIndices.set(playerId, discardPile.length - 1); // Store the index of the 聽 tile
+
+    console.log(`[TING] ✅ ${player.name} declared 聽 and discarded: ${tile.suit}-${tile.value}`);
+    console.log(`[TING] Hand size: ${hand.length} tiles`);
+
+    // Store last discarded tile for pong/gang/chow/hu
+    this.lastDiscardedTile = tile;
+    this.lastDiscardedBy = playerId;
+
+    // Send updated hand and discard pile to the player who declared 聽
+    player.ws.send(JSON.stringify({
+      type: 'hand_update',
+      payload: {
+        hand: hand,
+        tilesRemaining: this.tileManager.getRemainingCount(),
+        discardPile: discardPile,
+        isTing: true // Notify client they are now in 聽 status
+      }
+    }));
+
+    // Broadcast 聽 declaration to all players
+    this.broadcast({
+      type: 'player_ting',
+      payload: {
+        playerId: playerId,
+        tile: tingTile,
+        discardPile: discardPile,
+        handSize: hand.length,
+        tingTileIndex: discardPile.length - 1
       }
     });
 
@@ -848,6 +947,9 @@ export class MahjongGame {
         t.suit === tile.suit && t.value === tile.value
       );
 
+      // Check if player is in 聽 status - they can only claim 胡
+      const isPlayerTing = this.tingStatus.get(player.id);
+
       // Build possible claim sets
       const possibleClaims = [];
 
@@ -857,7 +959,7 @@ export class MahjongGame {
       // - Check if hand tiles + discarded tile can form remaining sets + 1 pair
       const numRevealedSets = melds.length;
 
-      console.log(`[CLAIM] Checking win for player ${player.name}:`);
+      console.log(`[CLAIM] Checking win for player ${player.name}${isPlayerTing ? ' (聽)' : ''}:`);
       const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
       const canHu = winResult.isWin;
 
@@ -874,31 +976,36 @@ export class MahjongGame {
         console.log(`  Win combinations found: ${allWinCombinations.length} (${winCombinations.length} unique)`, winCombinations);
       }
 
-      // Pong: 3 same tiles (2 from hand + discarded)
-      if (matchingTiles.length >= 2) {
-        const pongTiles = matchingTiles.slice(0, 2);
-        possibleClaims.push({
-          type: 'pong',
-          tiles: [pongTiles[0], tile, pongTiles[1]], // hand, discarded, hand
-          handTiles: pongTiles
-        });
-      }
+      // Players in 聽 status can only claim 胡, skip pong/gang/chow
+      if (!isPlayerTing) {
+        // Pong: 3 same tiles (2 from hand + discarded)
+        if (matchingTiles.length >= 2) {
+          const pongTiles = matchingTiles.slice(0, 2);
+          possibleClaims.push({
+            type: 'pong',
+            tiles: [pongTiles[0], tile, pongTiles[1]], // hand, discarded, hand
+            handTiles: pongTiles
+          });
+        }
 
-      // Gang: 4 same tiles (3 from hand + discarded)
-      if (matchingTiles.length >= 3) {
-        const gangTiles = matchingTiles.slice(0, 3);
-        possibleClaims.push({
-          type: 'gang',
-          tiles: [gangTiles[0], gangTiles[1], tile, gangTiles[2]], // hand, hand, discarded, hand
-          handTiles: gangTiles
-        });
+        // Gang: 4 same tiles (3 from hand + discarded)
+        if (matchingTiles.length >= 3) {
+          const gangTiles = matchingTiles.slice(0, 3);
+          possibleClaims.push({
+            type: 'gang',
+            tiles: [gangTiles[0], gangTiles[1], tile, gangTiles[2]], // hand, hand, discarded, hand
+            handTiles: gangTiles
+          });
+        }
       }
 
       // Chow/Shang: sequence (only 下家 can chow, and only for numbered suits)
+      // Players in 聽 status cannot chow
       const isNextPlayer = player.id === nextPlayerId;
       const isNumberedSuit = ['bamboo', 'character', 'dot'].includes(tile.suit);
 
-      if (isNextPlayer && isNumberedSuit) {
+      // Players in 聽 status cannot chow
+      if (isNextPlayer && isNumberedSuit && !isPlayerTing) {
         const suitTiles = hand.filter(t => t.suit === tile.suit);
         const tileValue = tile.value;
 
@@ -956,16 +1063,18 @@ export class MahjongGame {
         // Deduplicate possible claims (remove duplicate combinations)
         const uniquePossibleClaims = this.deduplicateClaims(possibleClaims);
 
+        // For 聽 players, only allow Hu claims
         claimOptions.push({
           playerId: player.id,
-          canPong: matchingTiles.length >= 2,
-          canGang: matchingTiles.length >= 3,
-          canChow: isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
-          canShang: isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
+          canPong: !isPlayerTing && matchingTiles.length >= 2,
+          canGang: !isPlayerTing && matchingTiles.length >= 3,
+          canChow: !isPlayerTing && isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
+          canShang: !isPlayerTing && isNextPlayer && isNumberedSuit && uniquePossibleClaims.some(c => c.type === 'chow'),
           canHu: canHu,
           winCombinations: winCombinations,
           isNextPlayer,
-          possibleClaims: uniquePossibleClaims
+          possibleClaims: isPlayerTing ? [] : uniquePossibleClaims, // 聽 players can't use possibleClaims
+          isTing: isPlayerTing
         });
       }
     });
@@ -1491,6 +1600,9 @@ export class MahjongGame {
         }
       });
     } else {
+      // Check if player is in 聽 status - they cannot gang
+      const isPlayerTing = this.tingStatus.get(playerId);
+
       // Normal draw - send updated hand to the player
       player.ws.send(JSON.stringify({
         type: 'tile_drawn',
@@ -1500,8 +1612,10 @@ export class MahjongGame {
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
           selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
+          canSelfGang: isPlayerTing ? false : canSelfGang, // 聽 players cannot gang
+          selfGangCombinations: isPlayerTing ? [] : selfGangCombinations,
+          isTing: isPlayerTing || false,
+          mustDiscardDrawnTile: isPlayerTing || false // 聽 players must discard the drawn tile
         }
       }));
 
@@ -1663,6 +1777,9 @@ export class MahjongGame {
         }
       });
     } else {
+      // Check if player is in 聽 status - they cannot gang
+      const isPlayerTing = this.tingStatus.get(playerId);
+
       // Normal draw - send updated hand to the player
       player.ws.send(JSON.stringify({
         type: 'tile_drawn',
@@ -1672,8 +1789,10 @@ export class MahjongGame {
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
           selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
+          canSelfGang: isPlayerTing ? false : canSelfGang, // 聽 players cannot gang
+          selfGangCombinations: isPlayerTing ? [] : selfGangCombinations,
+          isTing: isPlayerTing || false,
+          mustDiscardDrawnTile: isPlayerTing || false // 聽 players must discard the drawn tile
         }
       }));
 
@@ -2016,6 +2135,9 @@ export class MahjongGame {
         }
       });
     } else {
+      // Check if player is in 聽 status - they cannot gang
+      const isPlayerTing = this.tingStatus.get(playerId);
+
       // Normal draw - send updated hand to the player
       player.ws.send(JSON.stringify({
         type: 'tile_drawn',
@@ -2025,8 +2147,10 @@ export class MahjongGame {
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
           selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
+          canSelfGang: isPlayerTing ? false : canSelfGang, // 聽 players cannot gang
+          selfGangCombinations: isPlayerTing ? [] : selfGangCombinations,
+          isTing: isPlayerTing || false,
+          mustDiscardDrawnTile: isPlayerTing || false // 聽 players must discard the drawn tile
         }
       }));
 

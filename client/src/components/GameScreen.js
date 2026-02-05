@@ -36,6 +36,10 @@ function GameScreen({
   canSelfGang = false,
   selfGangCombinations = [],
   onSelfGang = null,
+  onTing = null,
+  isTing = false,
+  tingPlayers = {},
+  mustDiscardDrawnTile = false,
   onClaimClose = null,
   onPass = null,
   onCancelClaim = null,
@@ -168,6 +172,14 @@ function GameScreen({
   };
 
   const [selectedTile, setSelectedTile] = useState(null);
+  const [tingEnabled, setTingEnabled] = useState(false); // Local toggle for 聽 before discard
+
+  // Reset tingEnabled when turn changes or when it's no longer our turn
+  useEffect(() => {
+    if (currentPlayer !== playerInfo?.playerId) {
+      setTingEnabled(false);
+    }
+  }, [currentPlayer, playerInfo?.playerId]);
 
   const isMyTurn = currentPlayer === playerInfo?.playerId;
 
@@ -194,13 +206,20 @@ function GameScreen({
   // Can select tiles when it's my turn, in draw_discard phase, and hand size is valid
   const canSelectTiles = isMyTurn && isDrawDiscardPhase && isValidHandSizeForDiscard(hand.length);
 
-  // Debug logging
-  console.log('[GameScreen] isMyTurn:', isMyTurn, 'gamePhase:', gamePhase, 'hand.length:', hand.length, 'isValidHandSize:', isValidHandSizeForDiscard(hand.length), 'selectedTile:', selectedTile?.id, 'canDiscard:', canDiscard, 'canSelectTiles:', canSelectTiles);
+  // Debug logging - show all conditions for canSelectTiles
+  console.log('[GameScreen] canSelectTiles conditions: isMyTurn=', isMyTurn, '(currentPlayer:', currentPlayer, 'vs playerInfo.playerId:', playerInfo?.playerId, '), isDrawDiscardPhase=', isDrawDiscardPhase, '(gamePhase:', gamePhase, '), isValidHandSize=', isValidHandSizeForDiscard(hand.length), '(hand.length:', hand.length, ')');
+  console.log('[GameScreen] Result: canSelectTiles=', canSelectTiles, 'canDiscard=', canDiscard, 'selectedTile=', selectedTile?.id, 'isTing=', isTing, 'mustDiscardDrawnTile=', mustDiscardDrawnTile);
 
   const handleTileClick = (tile) => {
     // Only allow tile selection when we have 17 tiles and it's our turn in draw_discard phase
     if (!canSelectTiles) {
       console.log('[GameScreen] Tile click blocked - canSelectTiles:', canSelectTiles);
+      return;
+    }
+
+    // 聽 players can only select the drawn tile
+    if (mustDiscardDrawnTile && drawnTile && tile.id !== drawnTile.id) {
+      console.log('[GameScreen] Tile click blocked - 聽 player can only select drawn tile');
       return;
     }
 
@@ -213,8 +232,15 @@ function GameScreen({
 
   const handleDiscard = () => {
     if (canDiscard) {
-      onDiscard(selectedTile);
+      if (tingEnabled && onTing && !isTing) {
+        // If 聽 is enabled and player is not already in 聽 status, declare 聽 with this discard
+        onTing(selectedTile);
+      } else {
+        // Normal discard
+        onDiscard(selectedTile);
+      }
       setSelectedTile(null);
+      setTingEnabled(false); // Reset 聽 toggle after discard
     }
   };
 
@@ -482,12 +508,17 @@ function GameScreen({
 
             const renderDiscardTile = (playerId, tile, idx, discardPile) => {
               const isWinningDiscard = loserId === playerId && idx === discardPile.length - 1;
+              const isTingTile = tile.rotated === true;
+              const classNames = [
+                isWinningDiscard ? 'winning-discard-tile' : '',
+                isTingTile ? 'ting-discard-tile' : ''
+              ].filter(Boolean).join(' ');
               return (
                 <Tile
                   key={idx}
                   tile={tile}
                   size="small"
-                  className={isWinningDiscard ? 'winning-discard-tile' : ''}
+                  className={classNames}
                 />
               );
             };
@@ -496,7 +527,11 @@ function GameScreen({
               <>
                 {/* Left Discard (上家) */}
                 <div className="discard-area discard-area-left">
-                  <span className="discard-area-label">{leftPlayer?.name} ({positionToWind(leftPlayer?.position)}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                  <span className="discard-area-label">
+                    {leftPlayer?.name} ({positionToWind(leftPlayer?.position)})
+                    {leftPlayer?.id === dealerPlayer?.id && ' 莊'}
+                    {tingPlayers[leftPlayer?.id] !== undefined && <span className="ting-indicator"> 聽</span>}
+                  </span>
                   <div className="discard-tiles-inner">
                     {(discardPiles[leftPlayer?.id] || []).map((tile, idx) =>
                       renderDiscardTile(leftPlayer?.id, tile, idx, discardPiles[leftPlayer?.id] || [])
@@ -508,7 +543,11 @@ function GameScreen({
                 <div className="center-column">
                   {/* Top Discard (對家) */}
                   <div className="discard-area discard-area-top">
-                    <span className="discard-area-label">{topPlayer?.name} ({positionToWind(topPlayer?.position)}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                    <span className="discard-area-label">
+                      {topPlayer?.name} ({positionToWind(topPlayer?.position)})
+                      {topPlayer?.id === dealerPlayer?.id && ' 莊'}
+                      {tingPlayers[topPlayer?.id] !== undefined && <span className="ting-indicator"> 聽</span>}
+                    </span>
                     <div className="discard-tiles-inner">
                       {(discardPiles[topPlayer?.id] || []).map((tile, idx) =>
                         renderDiscardTile(topPlayer?.id, tile, idx, discardPiles[topPlayer?.id] || [])
@@ -543,7 +582,11 @@ function GameScreen({
 
                   {/* Bottom Discard (自己) */}
                   <div className="discard-area discard-area-bottom">
-                    <span className="discard-area-label">{playerInfo?.name} ({positionToWind(players.find(p => p.id === playerInfo?.playerId)?.position)}){playerInfo?.playerId === dealerPlayer?.id && ' 莊'}</span>
+                    <span className="discard-area-label">
+                      {playerInfo?.name} ({positionToWind(players.find(p => p.id === playerInfo?.playerId)?.position)})
+                      {playerInfo?.playerId === dealerPlayer?.id && ' 莊'}
+                      {isTing && <span className="ting-indicator"> 聽</span>}
+                    </span>
                     {(discardPiles[playerInfo?.playerId] || []).map((tile, idx) =>
                       renderDiscardTile(playerInfo?.playerId, tile, idx, discardPiles[playerInfo?.playerId] || [])
                     )}
@@ -552,7 +595,11 @@ function GameScreen({
 
                 {/* Right Discard (下家) */}
                 <div className="discard-area discard-area-right">
-                  <span className="discard-area-label">{rightPlayer?.name} ({positionToWind(rightPlayer?.position)}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                  <span className="discard-area-label">
+                    {rightPlayer?.name} ({positionToWind(rightPlayer?.position)})
+                    {rightPlayer?.id === dealerPlayer?.id && ' 莊'}
+                    {tingPlayers[rightPlayer?.id] !== undefined && <span className="ting-indicator"> 聽</span>}
+                  </span>
                   <div className="discard-tiles-inner">
                     {(discardPiles[rightPlayer?.id] || []).map((tile, idx) =>
                       renderDiscardTile(rightPlayer?.id, tile, idx, discardPiles[rightPlayer?.id] || [])
@@ -631,7 +678,7 @@ function GameScreen({
                         tile={tile}
                         selected={selectedTile?.id === tile.id}
                         onClick={() => handleTileClick(tile)}
-                        disabled={!canSelectTiles}
+                        disabled={!canSelectTiles || (mustDiscardDrawnTile && drawnTile && tile.id !== drawnTile.id)}
                       />
                     ))}
                     {/* Drawn tile shown separately with a gap */}
@@ -656,8 +703,21 @@ function GameScreen({
         {/* Action Buttons */}
         <div className="bottom-actions">
           <div className="player-actions">
-            <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>打牌</button>
-            <button className="action-btn" disabled>聽</button>
+            <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>
+              {tingEnabled ? '聽牌' : '打牌'}
+            </button>
+            <button
+              className={`action-btn ${isTing ? 'action-btn-active' : ''} ${tingEnabled && !isTing ? 'action-btn-ting-enabled' : ''}`}
+              onClick={() => {
+                if (!isTing) {
+                  // Toggle 聽 on/off before discard
+                  setTingEnabled(!tingEnabled);
+                }
+              }}
+              disabled={isTing}
+            >
+              聽{isTing ? ' ✓' : tingEnabled ? ' ON' : ''}
+            </button>
             <button
               className="action-btn action-btn-hu"
               onClick={() => {

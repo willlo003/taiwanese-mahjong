@@ -44,6 +44,9 @@ function App() {
   const [readyPlayers, setReadyPlayers] = useState([]); // Players who are ready for next game
   const [winningTile, setWinningTile] = useState(null); // The tile that completed the win (for 出沖)
   const [winningCombination, setWinningCombination] = useState(null); // The winning combination (sets and pair)
+  const [isTing, setIsTing] = useState(false); // Whether current player is in 聽 status
+  const [tingPlayers, setTingPlayers] = useState({}); // Track which players are in 聽 status { playerId: tingTileIndex }
+  const [mustDiscardDrawnTile, setMustDiscardDrawnTile] = useState(false); // 聽 players must discard drawn tile
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -93,6 +96,10 @@ function App() {
         if (data.payload.revealedBonusTiles !== undefined) {
           setRevealedBonusTiles(data.payload.revealedBonusTiles);
         }
+        // Reset 聽 status for new game
+        setIsTing(false);
+        setTingPlayers({});
+        setMustDiscardDrawnTile(false);
         soundManager.gameStart();
         break;
 
@@ -145,11 +152,16 @@ function App() {
             [playerInfo.playerId]: data.payload.discardPile
           }));
         }
+        // Handle 聽 status from hand_update (when player declares 聽)
+        if (data.payload.isTing) {
+          setIsTing(true);
+        }
         break;
 
       case 'tile_drawn':
         console.log('[CLIENT] tile_drawn received:', data.payload);
         console.log('[CLIENT] canSelfGang:', data.payload.canSelfGang, 'selfGangCombinations:', data.payload.selfGangCombinations);
+        console.log('[CLIENT] isTing:', data.payload.isTing, 'mustDiscardDrawnTile:', data.payload.mustDiscardDrawnTile);
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
@@ -158,6 +170,11 @@ function App() {
         setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
         setCanSelfGang(data.payload.canSelfGang || false); // Check if player can perform self-gang
         setSelfGangCombinations(data.payload.selfGangCombinations || []); // Store gang combinations
+        // Handle 聽 status
+        if (data.payload.isTing) {
+          setIsTing(true);
+          setMustDiscardDrawnTile(true);
+        }
         soundManager.tileDraw();
         break;
 
@@ -241,6 +258,34 @@ function App() {
             ...prev,
             [data.payload.playerId]: data.payload.handSize
           }));
+        }
+        soundManager.tileDiscard();
+        break;
+
+      case 'player_ting':
+        // Another player declared 聽
+        console.log('[CLIENT] player_ting received:', data.payload);
+        console.log('[CLIENT] player_ting - current hand.length:', hand.length, 'currentPlayer:', currentPlayer, 'playerInfo.playerId:', playerInfo?.playerId);
+        // Update discard pile with the rotated tile
+        setDiscardPiles(prev => ({
+          ...prev,
+          [data.payload.playerId]: data.payload.discardPile
+        }));
+        // Track which players are in 聽 status
+        setTingPlayers(prev => ({
+          ...prev,
+          [data.payload.playerId]: data.payload.tingTileIndex
+        }));
+        // Update hand size for the player who declared 聽
+        if (data.payload.handSize !== undefined) {
+          setPlayerHandSizes(prev => ({
+            ...prev,
+            [data.payload.playerId]: data.payload.handSize
+          }));
+        }
+        // If this is the current player, set their 聽 status
+        if (data.payload.playerId === playerInfo?.playerId) {
+          setIsTing(true);
         }
         soundManager.tileDiscard();
         break;
@@ -496,6 +541,18 @@ function App() {
     sendMessage({ type: 'action', payload: { type: 'self_gang', combinations } });
   };
 
+  // Handle 聽 (ting) declaration - player declares ready hand and discards a tile
+  const handleTing = (tile) => {
+    console.log('[CLIENT] Sending ting action with tile:', tile);
+    sendMessage({ type: 'action', payload: { type: 'ting', tile } });
+    setDrawnTile(null); // Clear drawn tile after declaring 聽
+    setCanSelfDrawWin(false);
+    setSelfDrawWinCombinations([]);
+    setCanSelfGang(false);
+    setSelfGangCombinations([]);
+    soundManager.tileClick();
+  };
+
   // Handle claim with selected claim data
   const handleClaim = (claimData) => {
     sendMessage({ type: 'action', payload: { type: claimData.type, tiles: claimData } });
@@ -645,6 +702,10 @@ function App() {
             canSelfGang={canSelfGang}
             selfGangCombinations={selfGangCombinations}
             onSelfGang={handleSelfGang}
+            onTing={handleTing}
+            isTing={isTing}
+            tingPlayers={tingPlayers}
+            mustDiscardDrawnTile={mustDiscardDrawnTile}
             onClaimClose={handleSkipClaim}
             onPass={handlePass}
             onCancelClaim={handleCancelClaim}
