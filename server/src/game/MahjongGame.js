@@ -1,5 +1,8 @@
 import { TileManager } from './TileManager.js';
 import { WinValidator } from './WinValidator.js';
+import { PhaseOne } from './PhaseOne.js';
+import { PhaseTwo } from './PhaseTwo.js';
+import { PhaseThree } from './PhaseThree.js';
 
 export class MahjongGame {
   constructor(players, broadcastFn) {
@@ -164,8 +167,10 @@ export class MahjongGame {
       { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
       { suit: 'dragon', value: 'red' },   // 中
       { suit: 'dragon', value: 'red' },   // 中
-      { suit: 'dot', value: 6 },
-      { suit: 'dot', value: 5 },  // 五筒
+      { suit: 'dragon', value: 'red' },   // 中
+      { suit: 'wind', value: 'east' },   // 中
+      // { suit: 'dot', value: 6 },
+      // { suit: 'dot', value: 5 },  // 五筒
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
@@ -272,197 +277,100 @@ export class MahjongGame {
     return tile.type === 'bonus' || tile.suit === 'flower' || tile.suit === 'season';
   }
 
-  // Start the flower replacement phase (補花)
-  startFlowerReplacementPhase() {
-    console.log('=== Starting flower replacement phase (補花) ===');
-    console.log('Dealer index:', this.dealerIndex);
-    console.log('Players:', this.players.map(p => p.name));
+  // Standardized draw function for game phase (打牌)
+  // Handles bonus tile replacement, win validation, and gang validation
+  // Returns: { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations }
+  drawTileWithBonusCheck(playerId, context = 'DRAW') {
+    console.log(`[${context}] 🎲 drawTileWithBonusCheck called for player ${playerId}`);
+    const player = this.players.find(p => p.id === playerId);
+    const hand = this.playerHands.get(playerId);
+    const melds = this.melds.get(playerId) || [];
 
-    // Broadcast that we're in flower replacement phase
-    console.log('Broadcasting phase_changed: flower_replacement');
-    this.broadcast({
-      type: 'phase_changed',
-      payload: {
-        phase: 'flower_replacement',
-        message: '補花中'
-      }
-    });
+    // Draw tiles, handling flower/season tiles (補花)
+    let tile = this.tileManager.drawTile();
+    const bonusTilesDrawn = [];
 
-    // Start processing from dealer (莊), anti-clockwise
-    this.flowerReplacementPlayerIndex = 0; // Offset from dealer
-    this.flowerReplacementRound = 0; // Track rounds to detect completion
+    if (!tile) {
+      console.log(`[${context}] ❌ No more tiles - game ends in draw`);
+      this.endGame('draw');
+      return null;
+    }
 
-    // Start the sequential flower replacement process
-    console.log('Calling processNextPlayerFlowerReplacement...');
-    this.processNextPlayerFlowerReplacement();
-  }
+    // Keep drawing if we get bonus tiles (flower/season)
+    while (tile && this.isBonusTile(tile)) {
+      bonusTilesDrawn.push(tile);
+      console.log(`[${context}] 🌸 ${player.name} drew bonus tile: ${tile.suit}-${tile.value} (type: ${tile.type}), drawing replacement...`);
 
-  // Process flower replacement for one player at a time
-  processNextPlayerFlowerReplacement() {
-    console.log('=== processNextPlayerFlowerReplacement ===');
-    console.log('flowerReplacementPlayerIndex:', this.flowerReplacementPlayerIndex);
-    console.log('flowerReplacementRound:', this.flowerReplacementRound);
+      // Add to revealed bonus tiles (but NOT to hand)
+      const revealed = this.revealedBonusTiles.get(playerId);
+      revealed.push(tile);
 
-    const playerIndex = (this.dealerIndex + this.flowerReplacementPlayerIndex) % this.players.length;
-    const player = this.players[playerIndex];
-    const hand = this.playerHands.get(player.id);
+      // Draw another tile
+      tile = this.tileManager.drawTile();
 
-    console.log(`Checking player ${player.name} (index ${playerIndex}), hand size: ${hand.length}`);
-
-    // Find all bonus tiles in hand
-    const bonusTiles = hand.filter(tile => this.isBonusTile(tile));
-    console.log(`Found ${bonusTiles.length} bonus tiles:`, bonusTiles.map(t => `${t.type}-${t.value}`));
-
-    if (bonusTiles.length > 0) {
-      // Reset round counter since we found flowers
-      this.flowerReplacementRound = 0;
-
-      // Notify all players who is currently doing 補花
-      this.broadcast({
-        type: 'flower_replacement_turn',
-        payload: {
-          playerId: player.id,
-          playerName: player.name
-        }
-      });
-
-      // Remove bonus tiles from hand
-      bonusTiles.forEach(bonusTile => {
-        const index = hand.findIndex(t =>
-          t.type === bonusTile.type && t.value === bonusTile.value
-        );
-        if (index !== -1) {
-          hand.splice(index, 1);
-        }
-      });
-
-      // Add to revealed bonus tiles
-      const revealed = this.revealedBonusTiles.get(player.id);
-      revealed.push(...bonusTiles);
-
-      // Draw replacement tiles (same number as removed)
-      const newTiles = [];
-      for (let j = 0; j < bonusTiles.length; j++) {
-        const newTile = this.tileManager.drawTile();
-        if (newTile) {
-          hand.push(newTile);
-          newTiles.push(newTile);
-        }
-      }
-
-      // Notify the player who replaced flowers
-      player.ws.send(JSON.stringify({
-        type: 'bonus_tiles_replaced',
-        payload: {
-          bonusTiles: bonusTiles,
-          newTiles: newTiles,
-          hand: hand,
-          revealedBonusTiles: revealed,
-          tilesRemaining: this.tileManager.getRemainingCount()
-        }
-      }));
-
-      // Notify others about the revealed bonus tiles
-      this.broadcastToOthers(player.id, {
-        type: 'player_revealed_bonus',
-        payload: {
-          playerId: player.id,
-          playerName: player.name,
-          bonusTiles: bonusTiles,
-          bonusTileCount: bonusTiles.length,
-          tilesRemaining: this.tileManager.getRemainingCount()
-        }
-      });
-
-      // After a delay, check this same player again (they might have drawn more flowers)
-      setTimeout(() => {
-        this.processNextPlayerFlowerReplacement();
-      }, 800); // 800ms delay for animation
-
-    } else {
-      // No flowers for this player, move to next player
-      this.flowerReplacementPlayerIndex = (this.flowerReplacementPlayerIndex + 1) % this.players.length;
-      this.flowerReplacementRound++;
-
-      // If we've gone through all 4 players without finding any flowers, phase is complete
-      if (this.flowerReplacementRound >= 4) {
-        this.completeFlowerReplacementPhase();
-      } else {
-        // Continue to next player after a short delay
-        setTimeout(() => {
-          this.processNextPlayerFlowerReplacement();
-        }, 200);
+      if (!tile) {
+        console.log(`[${context}] ❌ No more tiles - game ends in draw`);
+        this.endGame('draw');
+        return null;
       }
     }
-  }
 
-  // Complete the flower replacement phase and move to 打牌
-  completeFlowerReplacementPhase() {
-    console.log('Flower replacement phase complete. Moving to 打牌 phase.');
+    console.log(`[${context}] Final tile after bonus replacement: ${tile.suit}-${tile.value} (type: ${tile.type}), isBonusTile: ${this.isBonusTile(tile)}`);
+    console.log(`[${context}] Total bonus tiles drawn: ${bonusTilesDrawn.length}`);
 
-    // Verify tile counts (for debugging)
-    this.players.forEach((player, index) => {
-      const hand = this.playerHands.get(player.id);
-      const expectedCount = index === this.dealerIndex ? 17 : 16;
-      console.log(`Player ${player.name}: ${hand.length} tiles (expected ${expectedCount})`);
-    });
-
-    this.gamePhase = 'draw_discard';
-    this.broadcast({
-      type: 'phase_changed',
-      payload: {
-        phase: 'draw_discard',
-        message: '打牌'
-      }
-    });
-
-    // For dealer's first turn, check if they can win (天胡 - Heavenly Hand)
-    // Treat the last tile in hand as the "drawn tile" for win validation
-    const dealer = this.players[this.dealerIndex];
-    const dealerHand = this.playerHands.get(dealer.id);
-    const dealerMelds = this.melds.get(dealer.id) || [];
-    const numRevealedSets = dealerMelds.length;
-
-    // Use the last tile in hand as the "drawn tile" for 天胡 check
-    const lastTile = dealerHand[dealerHand.length - 1];
-    const handWithoutLast = dealerHand.slice(0, -1);
-
-    console.log(`[天胡] Checking dealer ${dealer.name} for Heavenly Hand`);
-    console.log(`[天胡] Hand (${dealerHand.length} tiles):`, dealerHand.map(t => `${t.suit}-${t.value}`).join(', '));
-    console.log(`[天胡] Last tile (as drawn tile):`, `${lastTile.suit}-${lastTile.value}`);
-
-    const winResult = WinValidator.isWinningHandWithMelds(handWithoutLast, numRevealedSets, lastTile);
+    // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
+    const numRevealedSets = melds.length;
+    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
     const canSelfDrawWin = winResult.isWin;
-    console.log(`[天胡] Can win (天胡): ${canSelfDrawWin}`);
 
+    // Find all possible winning combinations if can win
     let selfDrawWinCombinations = [];
     if (canSelfDrawWin) {
-      // Use the full dealer hand (which includes the last tile) for finding combinations
-      const allCombinations = WinValidator.findWinningCombinations(dealerHand, numRevealedSets, lastTile);
-      // Deduplicate win combinations
+      const handWithDrawnTile = [...hand, tile];
+      const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
       selfDrawWinCombinations = this.deduplicateWinCombinations(allCombinations);
-      console.log(`[天胡] Found ${allCombinations.length} winning combinations (${selfDrawWinCombinations.length} unique)`);
+      console.log(`[${context}] 🎉 ${player.name} can win by self-draw (自摸) with ${allCombinations.length} combinations (${selfDrawWinCombinations.length} unique)!`);
     }
 
-    // Set the last tile as the "drawn tile" for the dealer's first turn
-    // This enables 天胡 (Heavenly Hand) - winning on the initial deal
-    this.drawnTile = lastTile;
+    // Now add the non-bonus tile to hand
+    hand.push(tile);
+    console.log(`[${context}] ✅ ${player.name} drew: ${tile.suit}-${tile.value}`);
+    console.log(`[${context}] Hand size: ${hand.length} tiles`);
 
-    // Send dealer's first turn notification with win info
-    console.log(`[DEALER_FIRST_TURN] Sending dealer_first_turn to ${dealer.name}`);
-    if (dealer.ws) {
-      dealer.ws.send(JSON.stringify({
-        type: 'dealer_first_turn',
-        payload: {
-          hand: dealerHand,
-          canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations,
-          tilesRemaining: this.tileManager.getRemainingCount()
-        }
-      }));
+    // Check for self-gang options (暗槓 and 碰上槓)
+    const selfGangCombinations = this.checkSelfGangOptions(hand, melds);
+    const canSelfGang = selfGangCombinations.length > 0;
+
+    if (canSelfGang) {
+      console.log(`[${context}] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options:`, selfGangCombinations.map(g => `${g.type}: ${g.suit}-${g.value}`));
     }
-    // Notify all players about turn change
-    this.notifyCurrentPlayer();
+
+    // Store the drawn tile for reference (used for 自摸 win)
+    this.drawnTile = tile;
+
+    return {
+      tile,
+      bonusTilesDrawn,
+      canSelfDrawWin,
+      selfDrawWinCombinations,
+      canSelfGang,
+      selfGangCombinations
+    };
+  }
+
+  // Start the flower replacement phase (補花) - delegates to PhaseOne
+  startFlowerReplacementPhase() {
+    PhaseOne.startFlowerReplacementPhase(this);
+  }
+
+  // Process flower replacement for one player at a time - delegates to PhaseOne
+  processNextPlayerFlowerReplacement() {
+    PhaseOne.processNextPlayerFlowerReplacement(this);
+  }
+
+  // Complete the flower replacement phase and move to 打牌 - delegates to PhaseOne
+  completeFlowerReplacementPhase() {
+    PhaseOne.completeFlowerReplacementPhase(this);
   }
 
   notifyCurrentPlayer() {
@@ -538,11 +446,11 @@ export class MahjongGame {
 
       if (isSelfDraw) {
         // Self-draw win attempt - handle immediately
-        this.handleHu(playerId);
+        this.handleHu(playerId, action.combination);
         return;
       } else {
-        // Win by claiming discard - register the claim
-        const registered = this.registerClaim(playerId, action.type, action.tiles);
+        // Win by claiming discard - register the claim with combination
+        const registered = this.registerClaim(playerId, action.type, action.tiles, action.combination);
         if (registered) {
           player.ws.send(JSON.stringify({
             type: 'claim_registered',
@@ -583,6 +491,12 @@ export class MahjongGame {
     // Handle result_ready action - player is ready for next game
     if (action.type === 'result_ready') {
       this.handleResultReady(playerId);
+      return;
+    }
+
+    // Handle self-gang action - player performs 暗槓 or 碰上槓 during their turn
+    if (action.type === 'self_gang') {
+      this.handleSelfGang(playerId, action.combinations);
       return;
     }
 
@@ -653,57 +567,15 @@ export class MahjongGame {
     this.lastDiscardedTile = null;
     this.lastDiscardedBy = null;
 
-    // Draw tiles, handling flower/season tiles (補花)
-    let tile = this.tileManager.drawTile();
-    const bonusTilesDrawn = [];
+    // Use standardized draw function to handle bonus tiles, win check, and gang check
+    const drawResult = this.drawTileWithBonusCheck(playerId, 'DRAW');
 
-    if (!tile) {
-      console.log(`[DRAW] ❌ No more tiles - game ends in draw`);
-      this.endGame('draw'); // No more tiles
+    if (!drawResult) {
+      // Game ended in draw (no more tiles)
       return;
     }
 
-    // Keep drawing if we get bonus tiles (flower/season)
-    while (tile && this.isBonusTile(tile)) {
-      bonusTilesDrawn.push(tile);
-      console.log(`[DRAW] 🌸 ${player.name} drew bonus tile: ${tile.suit}-${tile.value}, drawing replacement...`);
-
-      // Add to revealed bonus tiles
-      const revealed = this.revealedBonusTiles.get(playerId);
-      revealed.push(tile);
-
-      // Draw another tile
-      tile = this.tileManager.drawTile();
-
-      if (!tile) {
-        console.log(`[DRAW] ❌ No more tiles - game ends in draw`);
-        this.endGame('draw'); // No more tiles
-        return;
-      }
-    }
-
-    // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
-    // WinValidator expects hand WITHOUT the last tile, and lastTile as separate parameter
-    const melds = this.melds.get(playerId) || [];
-    const numRevealedSets = melds.length;
-    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
-    const canSelfDrawWin = winResult.isWin;
-
-    // Find all possible winning combinations if can win
-    let selfDrawWinCombinations = [];
-    if (canSelfDrawWin) {
-      // Create a temporary hand that includes the drawn tile for finding combinations
-      const handWithDrawnTile = [...hand, tile];
-      const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-      // Deduplicate win combinations
-      selfDrawWinCombinations = this.deduplicateWinCombinations(allCombinations);
-      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${allCombinations.length} combinations (${selfDrawWinCombinations.length} unique)!`);
-    }
-
-    // Now add the non-bonus tile to hand
-    hand.push(tile);
-    console.log(`[DRAW] ✅ ${player.name} drew: ${tile.suit}-${tile.value}`);
-    console.log(`[DRAW] Hand size: ${hand.length} tiles`);
+    const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
 
     // Store the drawn tile for reference (used for 自摸 win)
     this.drawnTile = tile;
@@ -722,7 +594,9 @@ export class MahjongGame {
           revealedBonusTiles: revealed,
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
         }
       }));
 
@@ -747,7 +621,9 @@ export class MahjongGame {
           hand: hand,
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
         }
       }));
 
@@ -831,13 +707,16 @@ export class MahjongGame {
     this.checkClaimActions(tile, playerId);
   }
 
-  handleHu(playerId) {
+  handleHu(playerId, combination = null) {
     // Win validation was already done when showing the 食 button
     // Just execute the win directly without re-validating
     const player = this.players.find(p => p.id === playerId);
     const playerIndex = this.players.indexOf(player);
 
     console.log(`[HU] handleHu called for player ${player?.name}, playerId: ${playerId}`);
+    if (combination) {
+      console.log(`[HU] Winning combination:`, JSON.stringify(combination));
+    }
 
     // Determine if this is self-draw (自摸) or win by discard (出沖)
     const isSelfDraw = playerIndex === this.currentPlayerIndex && !this.claimWindowOpen;
@@ -846,12 +725,68 @@ export class MahjongGame {
     if (isSelfDraw) {
       // 自摸 - self-draw win, no loser (all others pay)
       console.log(`[HU] Player ${player?.name} wins by self-draw (自摸)`);
-      this.endGame('win_self_draw', playerId, { pattern: '自摸', score: 0 }, null);
+      this.endGame('win_self_draw', playerId, { pattern: '自摸', score: 0, winningCombination: combination }, null);
     } else {
       // 出沖 - win by claiming discarded tile
       console.log(`[HU] Player ${player?.name} wins by discard (出沖)`);
-      this.endGame('win_by_discard', playerId, { pattern: '出沖', score: 0 }, this.lastDiscardedBy);
+      this.endGame('win_by_discard', playerId, { pattern: '出沖', score: 0, winningCombination: combination }, this.lastDiscardedBy);
     }
+  }
+
+  // Helper function to check for self-gang possibilities (暗槓 and 碰上槓)
+  checkSelfGangOptions(hand, melds) {
+    const gangOptions = [];
+
+    console.log(`[CHECK_GANG] Checking gang options - Hand: ${hand.length} tiles, Melds: ${melds.length}`);
+    console.log(`[CHECK_GANG] Melds:`, melds.map(m => `${m.type}: ${m.tiles[0].suit}-${m.tiles[0].value} x${m.tiles.length}`));
+    console.log(`[CHECK_GANG] Hand tiles:`, hand.map(t => `${t.suit}-${t.value}`));
+
+    // Check for concealed gang (暗槓): 4 same tiles in hand
+    const tileCounts = new Map();
+    hand.forEach(tile => {
+      const key = `${tile.suit}-${tile.value}`;
+      if (!tileCounts.has(key)) {
+        tileCounts.set(key, []);
+      }
+      tileCounts.get(key).push(tile);
+    });
+
+    console.log(`[CHECK_GANG] Tile counts:`, Array.from(tileCounts.entries()).map(([key, tiles]) => `${key}: ${tiles.length}`));
+
+    tileCounts.forEach((tiles, key) => {
+      if (tiles.length === 4) {
+        gangOptions.push({
+          type: 'concealed_gang',
+          tiles: tiles,
+          suit: tiles[0].suit,
+          value: tiles[0].value
+        });
+        console.log(`[CHECK_GANG] ✅ Found concealed gang: ${tiles[0].suit}-${tiles[0].value}`);
+      }
+    });
+
+    // Check for add to pong (碰上槓): tile in hand matches existing pong
+    melds.forEach((meld, meldIdx) => {
+      console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
+      if (meld.type === 'pong') {
+        const matchingTile = hand.find(t =>
+          t.suit === meld.tiles[0].suit && t.value === meld.tiles[0].value
+        );
+        if (matchingTile) {
+          gangOptions.push({
+            type: 'add_to_pong',
+            tiles: [...meld.tiles, matchingTile],
+            meldIndex: meldIdx,
+            suit: matchingTile.suit,
+            value: matchingTile.value
+          });
+          console.log(`[CHECK_GANG] ✅ Found add-to-pong: ${matchingTile.suit}-${matchingTile.value}`);
+        }
+      }
+    });
+
+    console.log(`[CHECK_GANG] Total gang options found: ${gangOptions.length}`);
+    return gangOptions;
   }
 
   // Helper function to deduplicate claim combinations based on tile sets
@@ -1104,7 +1039,7 @@ export class MahjongGame {
   }
 
   // Register a claim from a player
-  registerClaim(playerId, claimType, tiles = null) {
+  registerClaim(playerId, claimType, tiles = null, combination = null) {
     if (!this.claimWindowOpen) {
       console.log(`[CLAIM] Claim window closed, ignoring ${claimType} from ${playerId}`);
       return false;
@@ -1119,12 +1054,16 @@ export class MahjongGame {
     const priority = priorityMap[claimType] || 0;
 
     console.log(`[CLAIM] Registering ${claimType} from player ${playerId} with priority ${priority}`);
+    if (combination) {
+      console.log(`[CLAIM] With winning combination:`, JSON.stringify(combination));
+    }
 
     this.pendingClaims.set(playerId, {
       type: claimType,
       priority: priority,
       tiles: tiles,
-      playerId: playerId
+      playerId: playerId,
+      combination: combination
     });
 
     // Remove from passed set if they had passed before
@@ -1313,7 +1252,7 @@ export class MahjongGame {
     // Execute the claim
     switch (highestClaim.type) {
       case 'hu':
-        this.executeHuClaim(highestClaim.playerId);
+        this.executeHuClaim(highestClaim.playerId, highestClaim.combination);
         break;
       case 'gang':
         this.executeGangClaim(highestClaim.playerId);
@@ -1393,26 +1332,27 @@ export class MahjongGame {
       }
     });
 
-    // Update the player's hand
+    // Check for self-gang options (暗槓 and 碰上槓) after claiming pong
+    const selfGangCombinations = this.checkSelfGangOptions(hand, melds);
+    const canSelfGang = selfGangCombinations.length > 0;
+
+    if (canSelfGang) {
+      console.log(`[CLAIM] 🎴 ${player.name} can self-gang after pong with ${selfGangCombinations.length} options:`, selfGangCombinations.map(g => `${g.type}: ${g.suit}-${g.value}`));
+    }
+
+    // Update the player's hand with gang options
     player.ws.send(JSON.stringify({
       type: 'hand_update',
       payload: {
         hand: hand,
-        tilesRemaining: this.tileManager.getRemainingCount()
+        tilesRemaining: this.tileManager.getRemainingCount(),
+        canSelfGang: canSelfGang,
+        selfGangCombinations: selfGangCombinations
       }
     }));
 
-    // Check if player can win immediately after claiming (e.g., if they now have 4 melds + 1 pair)
-    const numRevealedSets = melds.length;
-    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
-    if (winResult.isWin) {
-      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming pong!`);
-      // Player wins by claiming (出沖)
-      this.endGame('win_by_discard', playerId, winResult, discardedBy);
-      return;
-    }
-
     // Player who claimed must discard (they now have 17 tiles equivalent with meld)
+    // Note: We don't auto-win here - player must explicitly declare 食 (hu) if they want to win
     this.currentPlayerIndex = this.players.findIndex(p => p.id === playerId);
     this.broadcast({
       type: 'turn_changed',
@@ -1507,27 +1447,73 @@ export class MahjongGame {
     }
 
     // Player who claimed gang must draw a replacement tile from the back
-    // For now, just draw normally
-    const newTile = this.tileManager.drawTile();
-    if (newTile) {
-      hand.push(newTile);
+    // Use standardized draw function to handle bonus tiles
+    console.log(`[GANG_CLAIM] Drawing replacement tile (補牌)...`);
+    const drawResult = this.drawTileWithBonusCheck(playerId, 'GANG_CLAIM');
+
+    if (!drawResult) {
+      // Game ended in draw (no more tiles)
+      return;
+    }
+
+    const { tile: newTile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
+
+    // If we drew bonus tiles, notify everyone
+    if (bonusTilesDrawn.length > 0) {
+      const revealed = this.revealedBonusTiles.get(playerId);
+
+      // Notify the player about the flower replacement
+      player.ws.send(JSON.stringify({
+        type: 'draw_flower_replaced',
+        payload: {
+          bonusTiles: bonusTilesDrawn,
+          finalTile: newTile,
+          hand: hand,
+          revealedBonusTiles: revealed,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
+        }
+      }));
+
+      // Notify others about the flower replacement
+      this.broadcastToOthers(playerId, {
+        type: 'player_draw_flower_replaced',
+        payload: {
+          playerId: playerId,
+          playerName: player.name,
+          bonusTiles: bonusTilesDrawn,
+          revealedBonusTiles: revealed,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          handSize: hand.length
+        }
+      });
+    } else {
+      // Normal draw - send updated hand to the player
       player.ws.send(JSON.stringify({
         type: 'tile_drawn',
         payload: {
           tile: newTile,
           hand: hand,
-          tilesRemaining: this.tileManager.getRemainingCount()
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
         }
       }));
 
-      // Check if player can win with the drawn tile (自摸)
-      winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, newTile);
-      if (winResult.isWin) {
-        console.log(`[CLAIM] Player ${player.name} wins by self-draw after gang replacement!`);
-        // Player wins by self-draw (自摸)
-        this.endGame('win_by_self_draw', playerId, winResult);
-        return;
-      }
+      // Notify others that a tile was drawn (without showing the tile)
+      this.broadcastToOthers(playerId, {
+        type: 'player_drew',
+        payload: {
+          playerId: playerId,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          handSize: hand.length
+        }
+      });
     }
 
     // Player must discard after gang
@@ -1539,6 +1525,170 @@ export class MahjongGame {
         mustDiscard: true
       }
     });
+  }
+
+  // Handle self-gang (暗槓 and 碰上槓)
+  handleSelfGang(playerId, combinations) {
+    const player = this.players.find(p => p.id === playerId);
+    const hand = this.playerHands.get(playerId);
+    const melds = this.melds.get(playerId);
+
+    console.log('============================================================');
+    console.log(`[SELF-GANG] ${player.name} is performing self-gang...`);
+
+    // Only process ONE gang combination (first one in the array)
+    if (combinations.length === 0) {
+      console.log(`[SELF-GANG] ❌ No combinations provided`);
+      return;
+    }
+
+    const combo = combinations[0]; // Only take the first combination
+    console.log(`[SELF-GANG] Processing: ${combo.type} - ${combo.suit}-${combo.value}`);
+
+    if (combo.type === 'concealed_gang') {
+      // 暗槓: Remove 4 tiles from hand and add as concealed gang meld
+      const tilesToRemove = combo.tiles;
+
+      // Remove tiles from hand
+      tilesToRemove.forEach(t => {
+        const idx = hand.findIndex(ht => ht.id === t.id);
+        if (idx !== -1) hand.splice(idx, 1);
+      });
+
+      // Add concealed gang meld (concealed - others see face-down tiles)
+      const newMeld = {
+        type: 'concealed_gang',
+        tiles: tilesToRemove,
+        concealed: true
+      };
+      melds.push(newMeld);
+
+      console.log(`[SELF-GANG] ✅ Concealed gang (暗槓): ${combo.suit}-${combo.value} x4`);
+
+    } else if (combo.type === 'add_to_pong') {
+      // 碰上槓: Add tile to existing pong meld
+      const matchingTile = hand.find(t =>
+        t.suit === combo.suit && t.value === combo.value
+      );
+
+      if (!matchingTile) {
+        console.log(`[SELF-GANG] ❌ Cannot find matching tile for add-to-pong`);
+        return;
+      }
+
+      // Remove tile from hand
+      const idx = hand.findIndex(ht => ht.id === matchingTile.id);
+      if (idx !== -1) hand.splice(idx, 1);
+
+      // Find and update the pong meld
+      const meldIdx = melds.findIndex(m =>
+        m.type === 'pong' &&
+        m.tiles[0].suit === combo.suit &&
+        m.tiles[0].value === combo.value
+      );
+
+      if (meldIdx !== -1) {
+        melds[meldIdx].type = 'gang';
+        melds[meldIdx].tiles.push(matchingTile);
+
+        console.log(`[SELF-GANG] ✅ Add to pong (碰上槓): ${combo.suit}-${combo.value} x4`);
+      }
+    }
+
+    console.log(`[SELF-GANG] Hand size after gang: ${hand.length} tiles, Melds: ${melds.length}`);
+
+    // Send updated hand and melds to the player who performed gang
+    player.ws.send(JSON.stringify({
+      type: 'self_gang_claimed',
+      payload: {
+        playerId: playerId,
+        melds: melds,
+        hand: hand // Send updated hand with tiles removed
+      }
+    }));
+
+    // Broadcast the updated melds to other players (without showing hand)
+    this.broadcastToOthers(playerId, {
+      type: 'self_gang_claimed',
+      payload: {
+        playerId: playerId,
+        melds: melds
+      }
+    });
+
+    // After gang, draw a replacement tile using standardized function
+    console.log(`[SELF-GANG] Drawing replacement tile (補牌)...`);
+    const drawResult = this.drawTileWithBonusCheck(playerId, 'SELF-GANG');
+
+    if (!drawResult) {
+      // Game ended in draw (no more tiles)
+      return;
+    }
+
+    const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
+
+    // Store the drawn tile for reference (used for 自摸 win)
+    this.drawnTile = tile;
+
+    // If we drew bonus tiles, notify everyone
+    if (bonusTilesDrawn.length > 0) {
+      const revealed = this.revealedBonusTiles.get(playerId);
+
+      // Notify the player about the flower replacement
+      player.ws.send(JSON.stringify({
+        type: 'draw_flower_replaced',
+        payload: {
+          bonusTiles: bonusTilesDrawn,
+          finalTile: tile,
+          hand: hand,
+          revealedBonusTiles: revealed,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
+        }
+      }));
+
+      // Notify others about the flower replacement
+      this.broadcastToOthers(playerId, {
+        type: 'player_draw_flower_replaced',
+        payload: {
+          playerId: playerId,
+          playerName: player.name,
+          bonusTiles: bonusTilesDrawn,
+          revealedBonusTiles: revealed,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          handSize: hand.length
+        }
+      });
+    } else {
+      // Normal draw - send updated hand to the player
+      player.ws.send(JSON.stringify({
+        type: 'tile_drawn',
+        payload: {
+          tile: tile,
+          hand: hand,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          canSelfDrawWin: canSelfDrawWin,
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
+        }
+      }));
+
+      // Notify others that a tile was drawn (without showing the tile)
+      this.broadcastToOthers(playerId, {
+        type: 'player_drew',
+        payload: {
+          playerId: playerId,
+          tilesRemaining: this.tileManager.getRemainingCount(),
+          handSize: hand.length
+        }
+      });
+    }
+
+    console.log('============================================================');
   }
 
   // Execute chow claim
@@ -1667,26 +1817,27 @@ export class MahjongGame {
       }
     });
 
-    // Update the player's hand
+    // Check for self-gang options (暗槓 and 碰上槓) after claiming chow
+    const selfGangCombinations = this.checkSelfGangOptions(hand, melds);
+    const canSelfGang = selfGangCombinations.length > 0;
+
+    if (canSelfGang) {
+      console.log(`[CLAIM] 🎴 ${player.name} can self-gang after chow with ${selfGangCombinations.length} options:`, selfGangCombinations.map(g => `${g.type}: ${g.suit}-${g.value}`));
+    }
+
+    // Update the player's hand with gang options
     player.ws.send(JSON.stringify({
       type: 'hand_update',
       payload: {
         hand: hand,
-        tilesRemaining: this.tileManager.getRemainingCount()
+        tilesRemaining: this.tileManager.getRemainingCount(),
+        canSelfGang: canSelfGang,
+        selfGangCombinations: selfGangCombinations
       }
     }));
 
-    // Check if player can win immediately after claiming (e.g., if they now have 4 melds + 1 pair)
-    const numRevealedSets = melds.length;
-    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
-    if (winResult.isWin) {
-      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming chow/shang!`);
-      // Player wins by claiming (出沖)
-      this.endGame('win_by_discard', playerId, winResult, discardedBy);
-      return;
-    }
-
     // Player who claimed must discard
+    // Note: We don't auto-win here - player must explicitly declare 食 (hu) if they want to win
     this.currentPlayerIndex = this.players.findIndex(p => p.id === playerId);
     this.broadcast({
       type: 'turn_changed',
@@ -1698,7 +1849,7 @@ export class MahjongGame {
   }
 
   // Execute hu claim (出沖 - win by discard)
-  executeHuClaim(playerId) {
+  executeHuClaim(playerId, combination = null) {
     // Win validation was already done when showing claim options
     // Just execute the win directly
     const player = this.players.find(p => p.id === playerId);
@@ -1708,11 +1859,14 @@ export class MahjongGame {
     console.log('============================================================');
     console.log(`[WIN] 🎉 ${player?.name} is claiming 食 (hu) to win!`);
     console.log(`[WIN] Winning tile: ${discardedTile?.suit}-${discardedTile?.value} (discarded by ${discardedByPlayer?.name})`);
+    if (combination) {
+      console.log(`[WIN] Winning combination:`, JSON.stringify(combination));
+    }
 
     // 出沖 - win by claiming discarded tile
     // The discarder is the loser
     const loserId = this.lastDiscardedBy;
-    this.endGame('win_by_discard', playerId, { pattern: '出沖', score: 0 }, loserId);
+    this.endGame('win_by_discard', playerId, { pattern: '出沖', score: 0, winningCombination: combination }, loserId);
   }
 
   nextTurn() {
@@ -1933,6 +2087,15 @@ export class MahjongGame {
       }
     }
 
+    // For 出沖 (win by discard), add the discarded tile to the winner's hand
+    if (reason === 'win_by_discard' && winnerId && this.lastDiscardedTile) {
+      const winnerHand = this.playerHands.get(winnerId);
+      if (winnerHand) {
+        winnerHand.push(this.lastDiscardedTile);
+        console.log(`[END_GAME] Added discarded tile ${this.lastDiscardedTile.suit}-${this.lastDiscardedTile.value} to winner's hand`);
+      }
+    }
+
     // Build player results with revealed hands
     const playerResults = this.players.map(player => {
       const isWinner = player.id === winnerId;
@@ -1945,6 +2108,14 @@ export class MahjongGame {
       const hand = this.playerHands.get(player.id) || [];
       const playerMelds = this.melds.get(player.id) || [];
 
+      // Reveal all concealed gangs (暗槓) when game ends
+      const revealedMelds = playerMelds.map(meld => {
+        if (meld.type === 'gang' && meld.concealed) {
+          return { ...meld, concealed: false };
+        }
+        return meld;
+      });
+
       return {
         playerId: player.id,
         playerName: player.name,
@@ -1955,7 +2126,7 @@ export class MahjongGame {
         score: 0, // TODO: Implement scoring system
         totalScore: 0, // TODO: Track total scores across games
         hand: hand, // Reveal hand tiles
-        melds: playerMelds // Include melds
+        melds: revealedMelds // Include melds with revealed gangs
       };
     });
 
@@ -1976,6 +2147,8 @@ export class MahjongGame {
         loserName: loser?.name,
         pattern: winResult?.pattern,
         score: winResult?.score,
+        winningCombination: winResult?.winningCombination || null,
+        winningTile: reason === 'win_by_discard' ? this.lastDiscardedTile : null, // The tile that completed the win
         currentDealer: dealerPlayer.id,
         nextDealer: this.players[nextDealerIndex].id,
         dealerRotated: dealerRotated,

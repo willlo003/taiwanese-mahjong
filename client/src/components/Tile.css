@@ -37,6 +37,12 @@
   z-index: 1;
 }
 
+/* Rotated tile (180 degrees) for top player */
+.tile.rotated,
+.tile-back.rotated {
+  transform: rotate(180deg);
+}
+
 @keyframes tileAppear {
   from {
     opacity: 0;

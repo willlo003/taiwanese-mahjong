@@ -1,9 +1,14 @@
 import React from 'react';
 import './Tile.css';
 
-function Tile({ tile, selected, onClick, disabled, size = 'normal', className = '' }) {
+function Tile({ tile, selected, onClick, disabled, size = 'normal', className = '', concealed = false, rotated = false }) {
   // Return null if tile is undefined or null
   if (!tile) return null;
+
+  // If concealed, render as tile-back
+  if (concealed) {
+    return <div className={`tile-back ${rotated ? 'rotated' : ''}`} />;
+  }
 
   const getTileImagePath = () => {
     // Map our tile format to the image filenames
@@ -61,7 +66,7 @@ function Tile({ tile, selected, onClick, disabled, size = 'normal', className = 
 
   return (
     <div
-      className={`tile ${size} ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${className}`}
+      className={`tile ${size} ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${rotated ? 'rotated' : ''} ${className}`}
       onClick={!disabled ? onClick : undefined}
     >
       <img

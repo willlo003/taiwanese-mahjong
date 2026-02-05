@@ -36,10 +36,14 @@ function App() {
   const [pendingClaim, setPendingClaim] = useState(null); // The claim the player has registered
   const [canSelfDrawWin, setCanSelfDrawWin] = useState(false); // Whether player can win with self-draw
   const [selfDrawWinCombinations, setSelfDrawWinCombinations] = useState([]); // Possible winning combinations for self-draw
+  const [canSelfGang, setCanSelfGang] = useState(false); // Whether player can perform self-gang
+  const [selfGangCombinations, setSelfGangCombinations] = useState([]); // Possible gang combinations
   const [gameResult, setGameResult] = useState(null); // Game result data
   const [showResultPopup, setShowResultPopup] = useState(false); // Whether to show result popup overlay
   const [revealedHands, setRevealedHands] = useState({}); // All player hands revealed at game end
   const [readyPlayers, setReadyPlayers] = useState([]); // Players who are ready for next game
+  const [winningTile, setWinningTile] = useState(null); // The tile that completed the win (for 出沖)
+  const [winningCombination, setWinningCombination] = useState(null); // The winning combination (sets and pair)
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -119,6 +123,15 @@ function App() {
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setDrawnTile(null); // Clear drawn tile on hand update
+        // Update gang and win options if provided
+        if (data.payload.canSelfGang !== undefined) {
+          setCanSelfGang(data.payload.canSelfGang);
+          setSelfGangCombinations(data.payload.selfGangCombinations || []);
+        }
+        if (data.payload.canSelfDrawWin !== undefined) {
+          setCanSelfDrawWin(data.payload.canSelfDrawWin);
+          setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []);
+        }
         if (data.payload.revealedBonusTiles && playerInfo?.playerId) {
           setRevealedBonusTiles(prev => ({
             ...prev,
@@ -141,12 +154,15 @@ function App() {
         setDrawnTile(data.payload.tile); // Track the drawn tile
         setCanSelfDrawWin(data.payload.canSelfDrawWin || false); // Check if player can win with self-draw
         setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
+        setCanSelfGang(data.payload.canSelfGang || false); // Check if player can perform self-gang
+        setSelfGangCombinations(data.payload.selfGangCombinations || []); // Store gang combinations
         soundManager.tileDraw();
         break;
 
       case 'dealer_first_turn':
         // Dealer's first turn - they already have 17 tiles, check for 天胡 (Heavenly Hand)
         console.log('[CLIENT] dealer_first_turn received:', data.payload);
+        console.log('[CLIENT] canSelfGang:', data.payload.canSelfGang, 'selfGangCombinations:', data.payload.selfGangCombinations);
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true); // Dealer can discard immediately
@@ -156,6 +172,9 @@ function App() {
         }
         setCanSelfDrawWin(data.payload.canSelfDrawWin || false);
         setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []);
+        setCanSelfGang(data.payload.canSelfGang || false);
+        setSelfGangCombinations(data.payload.selfGangCombinations || []);
+        console.log('[CLIENT] After setting - canSelfGang should be:', data.payload.canSelfGang);
         break;
 
       case 'player_drew':
@@ -178,6 +197,8 @@ function App() {
         setDrawnTile(data.payload.finalTile || data.payload.tile); // Track the final drawn tile after replacement
         setCanSelfDrawWin(data.payload.canSelfDrawWin || false); // Check if player can win with self-draw
         setSelfDrawWinCombinations(data.payload.selfDrawWinCombinations || []); // Store win combinations
+        setCanSelfGang(data.payload.canSelfGang || false); // Check if player can perform self-gang
+        setSelfGangCombinations(data.payload.selfGangCombinations || []); // Store gang combinations
         if (data.payload.revealedBonusTiles && playerInfo?.playerId) {
           setRevealedBonusTiles(prev => ({
             ...prev,
@@ -260,9 +281,14 @@ function App() {
 
       case 'turn_changed':
         setCurrentPlayer(data.payload.currentPlayer);
-        setHasDrawn(false); // Reset draw state when turn changes
-        setDrawnTile(null); // Clear drawn tile when turn changes
-        if (data.payload.currentPlayer === playerInfo?.playerId) {
+        // Only clear states if it's NOT our turn (turn is changing away from us)
+        if (data.payload.currentPlayer !== playerInfo?.playerId) {
+          setHasDrawn(false); // Reset draw state when turn changes
+          setDrawnTile(null); // Clear drawn tile when turn changes
+          setCanSelfGang(false); // Clear gang state when turn changes
+          setSelfGangCombinations([]); // Clear gang combinations
+        } else {
+          // It's our turn now
           soundManager.yourTurn();
         }
         break;
@@ -332,6 +358,20 @@ function App() {
         if (data.type === 'chow_claimed') soundManager.chow();
         break;
 
+      case 'self_gang_claimed':
+        // Update melds for self-gang (暗槓 or 碰上槓)
+        console.log('[CLIENT] self_gang_claimed received:', data.payload);
+        setMelds(prev => ({
+          ...prev,
+          [data.payload.playerId]: data.payload.melds
+        }));
+        // If this is our own gang, update our hand (tiles removed)
+        if (data.payload.hand && data.payload.playerId === playerInfo?.playerId) {
+          setHand(data.payload.hand);
+        }
+        soundManager.gang();
+        break;
+
       case 'game_ended': {
         console.log('[CLIENT] Game ended:', data.payload);
 
@@ -348,6 +388,29 @@ function App() {
         // Store revealed hands for all players
         if (data.payload.allPlayerHands) {
           setRevealedHands(data.payload.allPlayerHands);
+        }
+
+        // Store winning tile for highlighting (出沖)
+        if (data.payload.winningTile) {
+          setWinningTile(data.payload.winningTile);
+        } else {
+          setWinningTile(null);
+        }
+
+        // Store winning combination for grouping display
+        if (data.payload.winningCombination) {
+          setWinningCombination(data.payload.winningCombination);
+        } else {
+          setWinningCombination(null);
+        }
+
+        // Update melds with revealed melds from playerResults (暗槓 now face up)
+        if (data.payload.playerResults) {
+          const revealedMelds = {};
+          data.payload.playerResults.forEach(result => {
+            revealedMelds[result.playerId] = result.melds;
+          });
+          setMelds(revealedMelds);
         }
 
         // Clear claim-related states
@@ -412,11 +475,22 @@ function App() {
     setDrawnTile(null); // Clear drawn tile after discarding
     setCanSelfDrawWin(false); // Clear self-draw win state when player chooses to discard
     setSelfDrawWinCombinations([]); // Clear win combinations
+    setCanSelfGang(false); // Clear self-gang state when player chooses to discard
+    setSelfGangCombinations([]); // Clear gang combinations
     soundManager.tileClick();
   };
 
-  const handleHu = () => {
-    sendMessage({ type: 'action', payload: { type: 'hu' } });
+  const handleHu = (combinationOrClaim = null) => {
+    // combinationOrClaim can be:
+    // 1. A combination object from SelfDrawWinPopup (for 自摸)
+    // 2. A claim object from ClaimPopup (for 出沖) with { type: 'hu', tiles, combination }
+    const combination = combinationOrClaim?.type === 'hu' ? combinationOrClaim.combination : combinationOrClaim;
+    sendMessage({ type: 'action', payload: { type: 'hu', combination } });
+  };
+
+  const handleSelfGang = (combinations) => {
+    console.log('[CLIENT] Sending self-gang action with combinations:', combinations);
+    sendMessage({ type: 'action', payload: { type: 'self_gang', combinations } });
   };
 
   // Handle claim with selected claim data
@@ -565,6 +639,9 @@ function App() {
             lastDiscardedTile={lastDiscardedTile}
             canSelfDrawWin={canSelfDrawWin}
             selfDrawWinCombinations={selfDrawWinCombinations}
+            canSelfGang={canSelfGang}
+            selfGangCombinations={selfGangCombinations}
+            onSelfGang={handleSelfGang}
             onClaimClose={handleSkipClaim}
             onPass={handlePass}
             onCancelClaim={handleCancelClaim}
@@ -575,6 +652,8 @@ function App() {
             readyPlayers={readyPlayers}
             onResultReady={handleResultReady}
             onResultLeave={handleResultLeave}
+            winningTile={winningTile}
+            winningCombination={winningCombination}
           />
         </>
       )}

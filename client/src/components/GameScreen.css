@@ -119,17 +119,17 @@
   justify-content: flex-end !important;
 }
 
-/* Make disk tiles same size as tile-back for side players */
+/* Make disk tiles same size as top player for side players */
 .player-disk-left .tile,
 .player-disk-right .tile,
 .player-disk-left .tile.normal,
 .player-disk-right .tile.normal {
-  width: 18px !important;
-  height: 26px !important;
-  min-width: 18px !important;
-  min-height: 26px !important;
-  max-width: 18px !important;
-  max-height: 26px !important;
+  width: 20px !important;
+  height: 29px !important;
+  min-width: 20px !important;
+  min-height: 29px !important;
+  max-width: 20px !important;
+  max-height: 29px !important;
   padding: 1px !important;
   border-width: 1px !important;
   box-sizing: border-box !important;
@@ -146,12 +146,12 @@
   .player-disk-right .tile,
   .player-disk-left .tile.normal,
   .player-disk-right .tile.normal {
-    width: 28px !important;
-    height: 38px !important;
-    min-width: 28px !important;
-    min-height: 38px !important;
-    max-width: 28px !important;
-    max-height: 38px !important;
+    width: 30px !important;
+    height: 43px !important;
+    min-width: 30px !important;
+    min-height: 43px !important;
+    max-width: 30px !important;
+    max-height: 43px !important;
     padding: 2px !important;
     border-width: 1px !important;
   }
@@ -160,13 +160,67 @@
 /* Rotate tiles in left player disk to match hand orientation */
 .player-disk-left .tile {
   transform: rotate(90deg);
-  margin: -3px 0;
+  margin: -5px 0;
 }
 
 /* Rotate tiles in right player disk to match hand orientation */
 .player-disk-right .tile {
   transform: rotate(-90deg);
-  margin: -3px 0;
+  margin: -5px 0;
+}
+
+@media (min-width: 1024px) {
+  .player-disk-left .tile {
+    margin: -7px 0;
+  }
+
+  .player-disk-right .tile {
+    margin: -7px 0;
+  }
+}
+
+/* Rotate tile-backs in left player disk (for 暗槓) */
+.player-disk-left .tile-back {
+  transform: rotate(90deg);
+  margin: -5px 0;
+  width: 20px;
+  height: 29px;
+}
+
+/* Rotate tile-backs in right player disk (for 暗槓) */
+.player-disk-right .tile-back {
+  transform: rotate(-90deg);
+  margin: -5px 0;
+  width: 20px;
+  height: 29px;
+}
+
+@media (min-width: 1024px) {
+  .player-disk-left .tile-back {
+    margin: -7px 0;
+    width: 30px;
+    height: 43px;
+  }
+
+  .player-disk-right .tile-back {
+    margin: -7px 0;
+    width: 30px;
+    height: 43px;
+  }
+}
+
+/* Rotate tile-backs in top player disk (for 暗槓) - 180 degrees */
+.player-disk-top .tile-back {
+  transform: rotate(180deg);
+  width: 20px;
+  height: 29px;
+}
+
+@media (min-width: 1024px) {
+  .player-disk-top .tile-back {
+    width: 30px;
+    height: 43px;
+  }
 }
 
 /* Meld group for side players */
@@ -823,6 +877,13 @@
   }
 }
 
+/* Left/Right player tile-back - same size as top player */
+.player-tiles-left > .tile-back,
+.player-tiles-right > .tile-back {
+  width: 20px;
+  height: 29px;
+}
+
 /* Left/Right player tile rotations - MUST be after .tile-back base styles */
 .player-tiles-left > .tile-back {
   transform: rotate(90deg);
@@ -832,6 +893,22 @@
 .player-tiles-right > .tile-back {
   transform: rotate(-90deg);
   margin: -5px 0;
+}
+
+@media (min-width: 1024px) {
+  .player-tiles-left > .tile-back,
+  .player-tiles-right > .tile-back {
+    width: 30px;
+    height: 43px;
+  }
+
+  .player-tiles-left > .tile-back {
+    margin: -7px 0;
+  }
+
+  .player-tiles-right > .tile-back {
+    margin: -7px 0;
+  }
 }
 
 /* Revealed tiles for top player - same size as tile-back */
@@ -848,19 +925,19 @@
   border-radius: 4px !important;
 }
 
-/* Revealed tiles for left/right players - smaller size */
+/* Revealed tiles for left/right players - same size as top player */
 .player-tiles-left .tile.revealed-tile,
 .player-tiles-right .tile.revealed-tile {
-  width: 16px !important;
-  height: 23px !important;
-  min-width: 16px !important;
-  min-height: 23px !important;
-  max-width: 16px !important;
-  max-height: 23px !important;
+  width: 20px !important;
+  height: 29px !important;
+  min-width: 20px !important;
+  min-height: 29px !important;
+  max-width: 20px !important;
+  max-height: 29px !important;
   padding: 1px !important;
   border-width: 1px !important;
   box-sizing: border-box !important;
-  border-radius: 3px !important;
+  border-radius: 4px !important;
 }
 
 .player-tiles-top .tile.revealed-tile .tile-image,
@@ -873,13 +950,13 @@
 /* Left player revealed tiles - rotate like tile-back */
 .player-tiles-left > .tile.revealed-tile {
   transform: rotate(90deg);
-  margin: -4px 0;
+  margin: -5px 0;
 }
 
 /* Right player revealed tiles - rotate like tile-back */
 .player-tiles-right > .tile.revealed-tile {
   transform: rotate(-90deg);
-  margin: -4px 0;
+  margin: -5px 0;
 }
 
 @media (min-width: 1024px) {
@@ -895,13 +972,21 @@
 
   .player-tiles-left .tile.revealed-tile,
   .player-tiles-right .tile.revealed-tile {
-    width: 22px !important;
-    height: 32px !important;
-    min-width: 22px !important;
-    min-height: 32px !important;
-    max-width: 22px !important;
-    max-height: 32px !important;
-    border-width: 1px !important;
+    width: 30px !important;
+    height: 43px !important;
+    min-width: 30px !important;
+    min-height: 43px !important;
+    max-width: 30px !important;
+    max-height: 43px !important;
+    border-width: 2px !important;
+  }
+
+  .player-tiles-left > .tile.revealed-tile {
+    margin: -7px 0;
+  }
+
+  .player-tiles-right > .tile.revealed-tile {
+    margin: -7px 0;
   }
 }
 
@@ -963,6 +1048,18 @@
   padding: 2px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
+}
+
+/* Concealed gang (暗槓) - different styling to indicate it's concealed */
+.meld-group.concealed-gang {
+  background: rgba(100, 100, 100, 0.3);
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+/* Concealed gang tile-back - grey background */
+.meld-group.concealed-gang .tile-back {
+  background: linear-gradient(135deg, #4a4a4a 0%, #7a7a7a 100%);
+  border-color: #3a3a3a;
 }
 
 /* Bonus tiles group - flowers/seasons grouped together, always first on left */
@@ -1937,5 +2034,108 @@
 
 .result-popup::-webkit-scrollbar-thumb:hover {
   background: rgba(233, 69, 96, 0.7);
+}
+
+/* Winner hand group - groups tiles by set/pair with gaps */
+.winner-hand-group {
+  display: flex;
+  gap: 1px;
+  margin-right: 8px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Winner hand pair (眼) - slightly different styling */
+.winner-hand-group.winner-hand-pair {
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* Winner hand groups container */
+.winner-hand-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Side player winner hand groups - vertical layout */
+.player-tiles-left .winner-hand-group,
+.player-tiles-right .winner-hand-group {
+  flex-direction: column;
+  margin-right: 0;
+  margin-bottom: 6px;
+  gap: 0px;
+  padding: 2px;
+}
+
+/* Tiles inside winner-hand-groups for left/right players - same size as top player */
+.player-tiles-left .winner-hand-group .tile,
+.player-tiles-right .winner-hand-group .tile {
+  width: 20px !important;
+  height: 29px !important;
+  min-width: 20px !important;
+  min-height: 29px !important;
+  max-width: 20px !important;
+  max-height: 29px !important;
+  padding: 1px !important;
+  border-width: 1px !important;
+}
+
+/* Rotate tiles inside winner-hand-groups for left player */
+.player-tiles-left .winner-hand-group .tile {
+  transform: rotate(90deg);
+  margin: -5px 0;
+}
+
+/* Rotate tiles inside winner-hand-groups for right player */
+.player-tiles-right .winner-hand-group .tile {
+  transform: rotate(-90deg);
+  margin: -5px 0;
+}
+
+/* Top player winner hand groups */
+.player-tiles-top .winner-hand-group {
+  flex-direction: row;
+}
+
+@media (min-width: 1024px) {
+  .winner-hand-group {
+    margin-right: 12px;
+    padding: 3px;
+  }
+
+  .player-tiles-left .winner-hand-group,
+  .player-tiles-right .winner-hand-group {
+    margin-bottom: 8px;
+    padding: 3px;
+  }
+
+  .player-tiles-left .winner-hand-group .tile,
+  .player-tiles-right .winner-hand-group .tile {
+    width: 30px !important;
+    height: 43px !important;
+    min-width: 30px !important;
+    min-height: 43px !important;
+    max-width: 30px !important;
+    max-height: 43px !important;
+  }
+
+  .player-tiles-left .winner-hand-group .tile {
+    margin: -7px 0;
+  }
+
+  .player-tiles-right .winner-hand-group .tile {
+    margin: -7px 0;
+  }
+}
+
+/* Winning tile highlight - red border for the tile that completed the win (出沖) */
+.winning-tile {
+  box-shadow: 0 0 0 3px #ff3333, 0 0 8px rgba(255, 51, 51, 0.6) !important;
+  border-radius: 4px;
+  position: relative;
+  z-index: 1;
 }
 

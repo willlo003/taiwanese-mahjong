@@ -33,6 +33,9 @@ function GameScreen({
   lastDiscardedTile = null,
   canSelfDrawWin = false,
   selfDrawWinCombinations = [],
+  canSelfGang = false,
+  selfGangCombinations = [],
+  onSelfGang = null,
   onClaimClose = null,
   onPass = null,
   onCancelClaim = null,
@@ -42,10 +45,13 @@ function GameScreen({
   gameResult = null,
   readyPlayers = [],
   onResultReady = null,
-  onResultLeave = null
+  onResultLeave = null,
+  winningTile = null,
+  winningCombination = null
 }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSelfDrawWinPopup, setShowSelfDrawWinPopup] = useState(false);
+  const [showSelfGangPopup, setShowSelfGangPopup] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
   // Reset isReady when result popup is closed (new game starting)
@@ -75,6 +81,90 @@ function GameScreen({
       return '打牌';
     }
     return '';
+  };
+
+  // Helper to check if a tile matches the winning tile
+  const isWinningTile = (tile, winTile) => {
+    if (!winTile || !tile) return false;
+    return tile.suit === winTile.suit && tile.value === winTile.value;
+  };
+
+  // Helper to render winner's hand grouped by winning combination
+  // reverseGroups: true for right player (bottom to top) and top player (right to left)
+  const renderGroupedWinnerHand = (handTiles, combination, rotated = false, winTile = null, reverseGroups = false) => {
+    // Track if we've already highlighted the winning tile (only highlight one)
+    let winningTileHighlighted = false;
+
+    const getTileClassName = (tile) => {
+      if (winTile && isWinningTile(tile, winTile) && !winningTileHighlighted) {
+        winningTileHighlighted = true;
+        return "revealed-tile winning-tile";
+      }
+      return "revealed-tile";
+    };
+
+    if (!combination || (!combination.sets && !combination.pairs)) {
+      // No combination info, just render tiles normally
+      return handTiles.map((tile, idx) => (
+        <Tile key={idx} tile={tile} className={getTileClassName(tile)} rotated={rotated} />
+      ));
+    }
+
+    const groups = [];
+    const usedTileIds = new Set();
+
+    // Add sets (pong/chow)
+    if (combination.sets) {
+      combination.sets.forEach((set, setIdx) => {
+        if (set && set.tiles) {
+          // Reverse tiles within group for right player (bottom to top) and top player (right to left)
+          const orderedTiles = reverseGroups ? [...set.tiles].reverse() : set.tiles;
+          groups.push(
+            <div key={`set-${setIdx}`} className="winner-hand-group">
+              {orderedTiles.map((tile, tileIdx) => {
+                usedTileIds.add(tile.id);
+                return <Tile key={tileIdx} tile={tile} className={getTileClassName(tile)} rotated={rotated} />;
+              })}
+            </div>
+          );
+        }
+      });
+    }
+
+    // Add pairs (for 嚦咕嚦咕 pattern)
+    if (combination.pairs) {
+      combination.pairs.forEach((pair, pairIdx) => {
+        if (pair && pair.tiles) {
+          // Reverse tiles within group for right player (bottom to top) and top player (right to left)
+          const orderedTiles = reverseGroups ? [...pair.tiles].reverse() : pair.tiles;
+          groups.push(
+            <div key={`pair-${pairIdx}`} className="winner-hand-group">
+              {orderedTiles.map((tile, tileIdx) => {
+                usedTileIds.add(tile.id);
+                return <Tile key={tileIdx} tile={tile} className={getTileClassName(tile)} rotated={rotated} />;
+              })}
+            </div>
+          );
+        }
+      });
+    }
+
+    // Add the pair (眼) for standard pattern
+    if (combination.pair && combination.pair.tiles) {
+      // Reverse tiles within group for right player (bottom to top) and top player (right to left)
+      const orderedTiles = reverseGroups ? [...combination.pair.tiles].reverse() : combination.pair.tiles;
+      groups.push(
+        <div key="pair" className="winner-hand-group winner-hand-pair">
+          {orderedTiles.map((tile, tileIdx) => {
+            usedTileIds.add(tile.id);
+            return <Tile key={tileIdx} tile={tile} className={getTileClassName(tile)} rotated={rotated} />;
+          })}
+        </div>
+      );
+    }
+
+    // Reverse groups for right player (bottom to top) and top player (right to left)
+    return reverseGroups ? groups.reverse() : groups;
   };
 
   const [selectedTile, setSelectedTile] = useState(null);
@@ -202,15 +292,22 @@ function GameScreen({
     const isWinner = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isWinner;
     const isLoser = showResultPopup && gameResult?.playerResults?.find(r => r.playerId === player.id)?.isLoser;
 
+    // For top player (對家), reverse the hand order so it appears left-to-right from their perspective
+    const topPlayerRevealedHand = sortHand(playerRevealedHand).reverse();
+
     return (
       <div className={`player-hand player-hand-top ${isActive && !showResultPopup ? 'current-turn' : ''} ${isDoingFlowerReplacement ? 'flower-replacement' : ''} ${isWinner ? 'game-winner' : ''} ${isLoser ? 'game-loser' : ''}`}>
         <div className="top-player-tiles-container">
-          {/* Hand tiles - show revealed if game ended */}
+          {/* Hand tiles - show revealed if game ended, reversed for top player perspective */}
           <div className="player-tiles player-tiles-top">
             {shouldReveal ? (
-              sortHand(playerRevealedHand).map((tile, idx) => (
-                <Tile key={idx} tile={tile} className="revealed-tile" />
-              ))
+              isWinner && winningCombination ? (
+                renderGroupedWinnerHand(topPlayerRevealedHand, winningCombination, true, winningTile, true)
+              ) : (
+                topPlayerRevealedHand.map((tile, idx) => (
+                  <Tile key={idx} tile={tile} className="revealed-tile" rotated={true} />
+                ))
+              )
             ) : (
               Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
                 <div key={idx} className="tile-back" />
@@ -229,13 +326,17 @@ function GameScreen({
                 </div>
               )}
               {/* Melds - added to right in order claimed */}
-              {playerMelds.map((meld, meldIdx) => (
-                <div key={`meld-${meldIdx}`} className="meld-group">
-                  {meld.tiles.map((tile, tileIdx) => (
-                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
-                  ))}
-                </div>
-              ))}
+              {playerMelds.map((meld, meldIdx) => {
+                // When game ends (showResultPopup), reveal all melds including 暗槓
+                const isConcealed = meld.concealed && !showResultPopup;
+                return (
+                  <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                    {meld.tiles.map((tile, tileIdx) => (
+                      <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} rotated={true} />
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -274,24 +375,32 @@ function GameScreen({
                 ))}
               </div>
             )}
-            {playerMelds.map((meld, meldIdx) => (
-              <div key={`meld-${meldIdx}`} className="meld-group">
-                {meld.tiles.map((tile, tileIdx) => (
-                  <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
-                ))}
-              </div>
-            ))}
+            {playerMelds.map((meld, meldIdx) => {
+              // When game ends (showResultPopup), reveal all melds including 暗槓
+              const isConcealed = meld.concealed && !showResultPopup;
+              return (
+                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                  {meld.tiles.map((tile, tileIdx) => (
+                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
+                  ))}
+                </div>
+              );
+            })}
           </>
         ) : (
           <>
             {/* Right player: melds at top, bonus tiles at bottom (perspective left) */}
-            {playerMelds.map((meld, meldIdx) => (
-              <div key={`meld-${meldIdx}`} className="meld-group">
-                {meld.tiles.map((tile, tileIdx) => (
-                  <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} />
-                ))}
-              </div>
-            ))}
+            {playerMelds.map((meld, meldIdx) => {
+              // When game ends (showResultPopup), reveal all melds including 暗槓
+              const isConcealed = meld.concealed && !showResultPopup;
+              return (
+                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                  {meld.tiles.map((tile, tileIdx) => (
+                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
+                  ))}
+                </div>
+              );
+            })}
             {playerBonusTiles.length > 0 && (
               <div className="bonus-tiles-group">
                 {playerBonusTiles.map((tile, idx) => (
@@ -315,9 +424,13 @@ function GameScreen({
     const handColumn = (
       <div className={`player-tiles player-tiles-${position}`}>
         {shouldReveal ? (
-          orderedRevealedHand.map((tile, idx) => (
-            <Tile key={idx} tile={tile} className="revealed-tile" />
-          ))
+          isWinner && winningCombination ? (
+            renderGroupedWinnerHand(orderedRevealedHand, winningCombination, false, winningTile, position === 'right')
+          ) : (
+            orderedRevealedHand.map((tile, idx) => (
+              <Tile key={idx} tile={tile} className="revealed-tile" />
+            ))
+          )
         ) : (
           Array.from({ length: Math.min(tileCount, 16) }).map((_, idx) => (
             <div key={idx} className="tile-back" />
@@ -473,7 +586,7 @@ function GameScreen({
                   )}
                   {/* Melds - added to right in order claimed */}
                   {myMelds.map((meld, meldIdx) => (
-                    <div key={`meld-${meldIdx}`} className="meld-group">
+                    <div key={`meld-${meldIdx}`} className={`meld-group ${meld.concealed ? 'concealed-gang' : ''}`}>
                       {meld.tiles.map((tile, tileIdx) => (
                         <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} size="small" />
                       ))}
@@ -482,26 +595,33 @@ function GameScreen({
                 </div>
               )}
               <div className="my-hand">
-                {sortedHand.map((tile) => (
-                  <Tile
-                    key={tile.id}
-                    tile={tile}
-                    selected={selectedTile?.id === tile.id}
-                    onClick={() => handleTileClick(tile)}
-                    disabled={!canSelectTiles}
-                  />
-                ))}
-                {/* Drawn tile shown separately with a gap */}
-                {drawnTileInHand && (
-                  <div className="drawn-tile-separator">
-                    <Tile
-                      key={drawnTileInHand.id}
-                      tile={drawnTileInHand}
-                      selected={selectedTile?.id === drawnTileInHand.id}
-                      onClick={() => handleTileClick(drawnTileInHand)}
-                      disabled={!canSelectTiles}
-                    />
-                  </div>
+                {/* Show grouped hand if I am the winner, otherwise show normal hand */}
+                {isMyWinner && winningCombination ? (
+                  renderGroupedWinnerHand(sortedHand, winningCombination, false, winningTile)
+                ) : (
+                  <>
+                    {sortedHand.map((tile) => (
+                      <Tile
+                        key={tile.id}
+                        tile={tile}
+                        selected={selectedTile?.id === tile.id}
+                        onClick={() => handleTileClick(tile)}
+                        disabled={!canSelectTiles}
+                      />
+                    ))}
+                    {/* Drawn tile shown separately with a gap */}
+                    {drawnTileInHand && (
+                      <div className="drawn-tile-separator">
+                        <Tile
+                          key={drawnTileInHand.id}
+                          tile={drawnTileInHand}
+                          selected={selectedTile?.id === drawnTileInHand.id}
+                          onClick={() => handleTileClick(drawnTileInHand)}
+                          disabled={!canSelectTiles}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -529,6 +649,20 @@ function GameScreen({
               title='自摸'
             >
               自摸
+            </button>
+            <button
+              className="action-btn action-btn-gang"
+              onClick={() => {
+                console.log('selfGangCombinations', selfGangCombinations);
+                if (selfGangCombinations && selfGangCombinations.length > 0) {
+                  // Show popup to choose gang combination
+                  setShowSelfGangPopup(true);
+                }
+              }}
+              disabled={!canSelfGang}
+              title='槓'
+            >
+              槓
             </button>
             <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
           </div>
@@ -575,6 +709,18 @@ function GameScreen({
             onHu();
           }}
           onCancel={() => setShowSelfDrawWinPopup(false)}
+        />
+      )}
+
+      {/* Self-Gang Popup - shown when player clicks 槓 for self-gang */}
+      {showSelfGangPopup && canSelfGang && (
+        <SelfGangPopup
+          combinations={selfGangCombinations}
+          onConfirm={(selectedCombinations) => {
+            setShowSelfGangPopup(false);
+            onSelfGang(selectedCombinations);
+          }}
+          onCancel={() => setShowSelfGangPopup(false)}
         />
       )}
 
@@ -957,6 +1103,83 @@ function SelfDrawWinPopup({ combinations, drawnTile, onConfirm, onCancel }) {
             disabled={combinations.length > 1 && selectedCombination === null}
           >
             確認胡牌
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Self-Gang Popup Component
+function SelfGangPopup({ combinations, onConfirm, onCancel }) {
+  const [selectedCombinations, setSelectedCombinations] = useState([]);
+
+  const handleCombinationClick = (idx) => {
+    setSelectedCombinations(prev => {
+      if (prev.includes(idx)) {
+        return prev.filter(i => i !== idx);
+      } else {
+        return [...prev, idx];
+      }
+    });
+  };
+
+  const handleConfirm = () => {
+    // If only one combination, auto-select it
+    if (combinations.length === 1) {
+      onConfirm([combinations[0]]);
+    } else if (selectedCombinations.length > 0) {
+      const selected = selectedCombinations.map(idx => combinations[idx]);
+      onConfirm(selected);
+    }
+  };
+
+  return (
+    <div className="claim-popup-overlay">
+      <div className="claim-popup">
+        <div className="claim-popup-header">
+          <span className="claim-popup-title">槓</span>
+        </div>
+
+        <div className="claim-options-list">
+          {combinations.map((combo, idx) => {
+            const isSelected = selectedCombinations.includes(idx);
+            const gangType = combo.type === 'concealed_gang' ? '暗槓' : '碰上槓';
+
+            return (
+              <button
+                key={idx}
+                className={`claim-option-btn ${isSelected ? 'claim-option-selected' : ''}`}
+                onClick={() => handleCombinationClick(idx)}
+              >
+                <span className="claim-option-label">{gangType}</span>
+                <div className="claim-tiles-preview">
+                  {combo.tiles.map((tile, tileIdx) => (
+                    <Tile
+                      key={tileIdx}
+                      tile={tile}
+                      size="small"
+                    />
+                  ))}
+                </div>
+                <span className="claim-option-info">
+                  {combo.type === 'add_to_pong' ? '加槓' : '暗槓'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="self-draw-popup-actions">
+          <button className="self-draw-cancel-btn" onClick={onCancel}>
+            取消
+          </button>
+          <button
+            className="self-draw-confirm-btn"
+            onClick={handleConfirm}
+            disabled={combinations.length > 1 && selectedCombinations.length === 0}
+          >
+            確認槓
           </button>
         </div>
       </div>

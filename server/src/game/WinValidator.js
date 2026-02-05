@@ -272,11 +272,90 @@ export class WinValidator {
   }
 
   /**
+   * Extract all sets from tile counts (returns array of sets, each set is { type: 'pong'|'chow', tiles: [...] })
+   * @param {Object} tileCounts - Tile counts object
+   * @param {number} numSets - Number of sets to extract
+   * @param {Array} handTiles - Original hand tiles to get actual tile objects
+   * @param {Array} usedTileIds - Array of tile IDs already used (to avoid reusing)
+   * @returns {Array|null} Array of sets or null if cannot form sets
+   */
+  static extractSets(tileCounts, numSets, handTiles, usedTileIds = []) {
+    if (numSets === 0) {
+      // All tiles should be used
+      if (Object.values(tileCounts).every(count => count === 0)) {
+        return [];
+      }
+      return null;
+    }
+
+    // Try to form a Pong first
+    for (const [tileKey, count] of Object.entries(tileCounts)) {
+      if (count >= 3) {
+        const newCounts = { ...tileCounts };
+        newCounts[tileKey] -= 3;
+
+        const result = this.extractSets(newCounts, numSets - 1, handTiles, usedTileIds);
+        if (result !== null) {
+          // Get 3 tiles of this type from hand (not already used)
+          const parsed = this.parseTileKey(tileKey);
+          const pongTiles = handTiles.filter(t =>
+            t.suit === parsed.suit && t.value === parsed.value && !usedTileIds.includes(t.id)
+          ).slice(0, 3);
+
+          if (pongTiles.length === 3) {
+            return [{ type: 'pong', tiles: pongTiles }, ...result];
+          }
+        }
+      }
+    }
+
+    // Try to form a Chow (only for suit tiles)
+    for (const [tileKey, count] of Object.entries(tileCounts)) {
+      if (count > 0) {
+        const tile = this.parseTileKey(tileKey);
+        if (tile.type === 'suit' && typeof tile.value === 'number') {
+          // Try to form a sequence
+          const key1 = this.makeTileKey(tile.suit, tile.value);
+          const key2 = this.makeTileKey(tile.suit, tile.value + 1);
+          const key3 = this.makeTileKey(tile.suit, tile.value + 2);
+
+          if (tileCounts[key1] > 0 && tileCounts[key2] > 0 && tileCounts[key3] > 0) {
+            const newCounts = { ...tileCounts };
+            newCounts[key1] -= 1;
+            newCounts[key2] -= 1;
+            newCounts[key3] -= 1;
+
+            const result = this.extractSets(newCounts, numSets - 1, handTiles, usedTileIds);
+            if (result !== null) {
+              // Get the 3 tiles for this chow from hand
+              const parsed1 = this.parseTileKey(key1);
+              const parsed2 = this.parseTileKey(key2);
+              const parsed3 = this.parseTileKey(key3);
+
+              const chowTiles = [
+                handTiles.find(t => t.suit === parsed1.suit && t.value === parsed1.value && !usedTileIds.includes(t.id)),
+                handTiles.find(t => t.suit === parsed2.suit && t.value === parsed2.value && !usedTileIds.includes(t.id)),
+                handTiles.find(t => t.suit === parsed3.suit && t.value === parsed3.value && !usedTileIds.includes(t.id))
+              ].filter(Boolean);
+
+              if (chowTiles.length === 3) {
+                return [{ type: 'chow', tiles: chowTiles }, ...result];
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Check for Seven Pairs
    */
   static isSevenPairs(tiles) {
     if (tiles.length !== 14) return false;
-    
+
     const tileCounts = this.countTiles(tiles);
     const pairs = Object.values(tileCounts).filter(count => count === 2);
     
@@ -374,7 +453,9 @@ export class WinValidator {
           combinations.push({
             pattern: 'standard',
             lastTileRole: 'pair',
-            displayTiles: [tile1, tile2]
+            displayTiles: [tile1, tile2],
+            sets: [],
+            pair: { tiles: [tile1, tile2] }
           });
         }
       }
@@ -412,12 +493,18 @@ export class WinValidator {
             }
           }
 
+          // Extract all sets from the remaining tiles
+          const usedTileIds = pairTiles.map(t => t.id);
+          const sets = this.extractSets(remainingCounts, neededSets, handTiles, usedTileIds);
+
           combinations.push({
             pattern: 'standard',
             lastTileRole: isLastTileInPair ? 'pair' : (lastTileSetType || 'set'),
             displayTiles: displayTiles,
             pairTiles: pairTiles,
-            pairKey: tileKey
+            pairKey: tileKey,
+            sets: sets || [],
+            pair: { tiles: pairTiles }
           });
         }
       }
@@ -531,10 +618,26 @@ export class WinValidator {
           }
         }
 
+        // Extract all pairs as sets
+        const pairs = [];
+        const usedIds = new Set();
+        for (const [key, count] of Object.entries(tileCounts)) {
+          if (count === 2) {
+            const parsed = this.parseTileKey(key);
+            const pairTiles = handTiles.filter(t =>
+              t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
+            ).slice(0, 2);
+            pairTiles.forEach(t => usedIds.add(t.id));
+            pairs.push({ type: 'pair', tiles: pairTiles });
+          }
+        }
+
         combinations.push({
           pattern: 'ligu_ligu',
           lastTileRole: 'pair',
-          displayTiles: displayTiles
+          displayTiles: displayTiles,
+          sets: [],
+          pairs: pairs
         });
       }
     } else {
@@ -555,23 +658,39 @@ export class WinValidator {
 
             // Get display tiles based on what the last tile completes
             let displayTiles = [];
+            const pongTiles = handTiles.filter(t =>
+              t.suit === pongTile.suit && t.value === pongTile.value
+            ).slice(0, 3);
+
             if (isLastTileInPong) {
-              // Last tile completes the pong
-              displayTiles = handTiles.filter(t =>
-                t.suit === pongTile.suit && t.value === pongTile.value
-              ).slice(0, 3);
+              displayTiles = pongTiles;
             } else if (lastTile) {
-              // Last tile completes a pair
               displayTiles = handTiles.filter(t =>
                 t.suit === lastTile.suit && t.value === lastTile.value
               ).slice(0, 2);
+            }
+
+            // Extract all pairs
+            const pairs = [];
+            const usedIds = new Set(pongTiles.map(t => t.id));
+            for (const [key, pairCount] of Object.entries(remainingCounts)) {
+              if (pairCount === 2) {
+                const parsed = this.parseTileKey(key);
+                const pairTiles = handTiles.filter(t =>
+                  t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
+                ).slice(0, 2);
+                pairTiles.forEach(t => usedIds.add(t.id));
+                pairs.push({ type: 'pair', tiles: pairTiles });
+              }
             }
 
             combinations.push({
               pattern: 'ligu_ligu',
               lastTileRole: isLastTileInPong ? 'pong' : 'pair',
               displayTiles: displayTiles,
-              pongKey: tileKey
+              pongKey: tileKey,
+              sets: [{ type: 'pong', tiles: pongTiles }],
+              pairs: pairs
             });
           }
         }
