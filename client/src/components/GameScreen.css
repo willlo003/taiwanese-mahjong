@@ -209,9 +209,8 @@
   }
 }
 
-/* Rotate tile-backs in top player disk (for 暗槓) - 180 degrees */
+/* Tile-backs in top player disk (for 暗槓) - no rotation needed since container is already rotated 180deg */
 .player-disk-top .tile-back {
-  transform: rotate(180deg);
   width: 20px;
   height: 29px;
 }
@@ -1628,6 +1627,81 @@
   box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
 }
 
+/* Result Popup Leave Confirmation */
+.result-leave-confirm-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 12px;
+}
+
+.result-leave-confirm-popup {
+  background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 240px;
+  max-width: 90%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-align: center;
+}
+
+.result-leave-confirm-message {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.result-leave-confirm-warning {
+  font-size: 13px;
+  color: #f39c12;
+  margin-bottom: 20px;
+}
+
+.result-leave-confirm-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.result-leave-confirm-btn {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.result-leave-confirm-cancel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.result-leave-confirm-cancel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.result-leave-confirm-yes {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+}
+
+.result-leave-confirm-yes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
 /* Win Combinations Popup Styles */
 .win-combinations-overlay {
   position: fixed;
@@ -2061,24 +2135,25 @@
 }
 
 /* Side player winner hand groups - vertical layout */
+/* Side player winner hand groups - vertical layout with smaller gaps */
 .player-tiles-left .winner-hand-group,
 .player-tiles-right .winner-hand-group {
   flex-direction: column;
   margin-right: 0;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   gap: 0px;
-  padding: 2px;
+  padding: 1px;
 }
 
-/* Tiles inside winner-hand-groups for left/right players - same size as top player */
+/* Tiles inside winner-hand-groups for left/right players - smaller size */
 .player-tiles-left .winner-hand-group .tile,
 .player-tiles-right .winner-hand-group .tile {
-  width: 20px !important;
-  height: 29px !important;
-  min-width: 20px !important;
-  min-height: 29px !important;
-  max-width: 20px !important;
-  max-height: 29px !important;
+  width: 16px !important;
+  height: 23px !important;
+  min-width: 16px !important;
+  min-height: 23px !important;
+  max-width: 16px !important;
+  max-height: 23px !important;
   padding: 1px !important;
   border-width: 1px !important;
 }
@@ -2086,13 +2161,13 @@
 /* Rotate tiles inside winner-hand-groups for left player */
 .player-tiles-left .winner-hand-group .tile {
   transform: rotate(90deg);
-  margin: -5px 0;
+  margin: -4px 0;
 }
 
 /* Rotate tiles inside winner-hand-groups for right player */
 .player-tiles-right .winner-hand-group .tile {
   transform: rotate(-90deg);
-  margin: -5px 0;
+  margin: -4px 0;
 }
 
 /* Top player winner hand groups */
@@ -2135,6 +2210,14 @@
 .winning-tile {
   box-shadow: 0 0 0 3px #ff3333, 0 0 8px rgba(255, 51, 51, 0.6) !important;
   border-radius: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Winning discard tile - red border for the last discarded tile that caused 出沖 */
+.winning-discard-tile {
+  box-shadow: 0 0 0 2px #ff3333, 0 0 6px rgba(255, 51, 51, 0.6) !important;
+  border-radius: 3px;
   position: relative;
   z-index: 1;
 }

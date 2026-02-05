@@ -765,7 +765,7 @@ export class MahjongGame {
       }
     });
 
-    // Check for add to pong (碰上槓): tile in hand matches existing pong
+    // Check for add to pong (碰上槓): any tile in hand that matches existing pong
     melds.forEach((meld, meldIdx) => {
       console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
       if (meld.type === 'pong') {
@@ -1975,6 +1975,14 @@ export class MahjongGame {
     // Store the drawn tile for reference (used for 自摸 win)
     this.drawnTile = tile;
 
+    // Check for self-gang options AFTER adding tile to hand
+    const selfGangCombinations = this.checkSelfGangOptions(hand, melds);
+    const canSelfGang = selfGangCombinations.length > 0;
+
+    if (canSelfGang) {
+      console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
+    }
+
     // If we drew bonus tiles, notify everyone
     if (bonusTilesDrawn.length > 0) {
       const revealed = this.revealedBonusTiles.get(playerId);
@@ -1989,7 +1997,9 @@ export class MahjongGame {
           revealedBonusTiles: revealed,
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
         }
       }));
 
@@ -2014,7 +2024,9 @@ export class MahjongGame {
           hand: hand,
           tilesRemaining: this.tileManager.getRemainingCount(),
           canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations
+          selfDrawWinCombinations: selfDrawWinCombinations,
+          canSelfGang: canSelfGang,
+          selfGangCombinations: selfGangCombinations
         }
       }));
 

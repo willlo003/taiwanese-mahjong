@@ -326,13 +326,14 @@ function GameScreen({
                 </div>
               )}
               {/* Melds - added to right in order claimed */}
+              {/* Note: tiles don't need rotated={true} because the container is already rotated 180deg */}
               {playerMelds.map((meld, meldIdx) => {
                 // When game ends (showResultPopup), reveal all melds including 暗槓
                 const isConcealed = meld.concealed && !showResultPopup;
                 return (
                   <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
                     {meld.tiles.map((tile, tileIdx) => (
-                      <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} rotated={true} />
+                      <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
                     ))}
                   </div>
                 );
@@ -389,8 +390,9 @@ function GameScreen({
           </>
         ) : (
           <>
-            {/* Right player: melds at top, bonus tiles at bottom (perspective left) */}
-            {playerMelds.map((meld, meldIdx) => {
+            {/* Right player: melds reversed (bottom to top), bonus tiles at bottom (perspective left) */}
+            {/* Reverse melds so first meld appears at bottom, matching the hand order */}
+            {[...playerMelds].reverse().map((meld, meldIdx) => {
               // When game ends (showResultPopup), reveal all melds including 暗槓
               const isConcealed = meld.concealed && !showResultPopup;
               return (
@@ -472,27 +474,47 @@ function GameScreen({
 
         {/* Center - Game Info and All 4 Discard Areas */}
         <div className="center-area">
-          {/* Left Discard (上家) */}
-          <div className="discard-area discard-area-left">
-            <span className="discard-area-label">{leftPlayer?.name} ({positionToWind(leftPlayer?.position)}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-            <div className="discard-tiles-inner">
-              {(discardPiles[leftPlayer?.id] || []).map((tile, idx) => (
-                <Tile key={idx} tile={tile} size="small" />
-              ))}
-            </div>
-          </div>
+          {/* Determine if we should highlight the loser's last discard (出沖) */}
+          {(() => {
+            const loserId = showResultPopup && gameResult?.winType === '出沖'
+              ? gameResult?.playerResults?.find(r => r.isLoser)?.playerId
+              : null;
 
-          {/* Center Column: Top Discard, Game Info, Bottom Discard */}
-          <div className="center-column">
-            {/* Top Discard (對家) */}
-            <div className="discard-area discard-area-top">
-              <span className="discard-area-label">{topPlayer?.name} ({positionToWind(topPlayer?.position)}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-              <div className="discard-tiles-inner">
-                {(discardPiles[topPlayer?.id] || []).map((tile, idx) => (
-                  <Tile key={idx} tile={tile} size="small" />
-                ))}
-              </div>
-            </div>
+            const renderDiscardTile = (playerId, tile, idx, discardPile) => {
+              const isWinningDiscard = loserId === playerId && idx === discardPile.length - 1;
+              return (
+                <Tile
+                  key={idx}
+                  tile={tile}
+                  size="small"
+                  className={isWinningDiscard ? 'winning-discard-tile' : ''}
+                />
+              );
+            };
+
+            return (
+              <>
+                {/* Left Discard (上家) */}
+                <div className="discard-area discard-area-left">
+                  <span className="discard-area-label">{leftPlayer?.name} ({positionToWind(leftPlayer?.position)}){leftPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                  <div className="discard-tiles-inner">
+                    {(discardPiles[leftPlayer?.id] || []).map((tile, idx) =>
+                      renderDiscardTile(leftPlayer?.id, tile, idx, discardPiles[leftPlayer?.id] || [])
+                    )}
+                  </div>
+                </div>
+
+                {/* Center Column: Top Discard, Game Info, Bottom Discard */}
+                <div className="center-column">
+                  {/* Top Discard (對家) */}
+                  <div className="discard-area discard-area-top">
+                    <span className="discard-area-label">{topPlayer?.name} ({positionToWind(topPlayer?.position)}){topPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                    <div className="discard-tiles-inner">
+                      {(discardPiles[topPlayer?.id] || []).map((tile, idx) =>
+                        renderDiscardTile(topPlayer?.id, tile, idx, discardPiles[topPlayer?.id] || [])
+                      )}
+                    </div>
+                  </div>
 
             {/* Game Info */}
             <div className="game-info">
@@ -519,24 +541,27 @@ function GameScreen({
               </div>
             </div>
 
-            {/* Bottom Discard (自己) */}
-            <div className="discard-area discard-area-bottom">
-              <span className="discard-area-label">{playerInfo?.name} ({positionToWind(players.find(p => p.id === playerInfo?.playerId)?.position)}){playerInfo?.playerId === dealerPlayer?.id && ' 莊'}</span>
-              {(discardPiles[playerInfo?.playerId] || []).map((tile, idx) => (
-                <Tile key={idx} tile={tile} size="small" />
-              ))}
-            </div>
-          </div>
+                  {/* Bottom Discard (自己) */}
+                  <div className="discard-area discard-area-bottom">
+                    <span className="discard-area-label">{playerInfo?.name} ({positionToWind(players.find(p => p.id === playerInfo?.playerId)?.position)}){playerInfo?.playerId === dealerPlayer?.id && ' 莊'}</span>
+                    {(discardPiles[playerInfo?.playerId] || []).map((tile, idx) =>
+                      renderDiscardTile(playerInfo?.playerId, tile, idx, discardPiles[playerInfo?.playerId] || [])
+                    )}
+                  </div>
+                </div>
 
-          {/* Right Discard (下家) */}
-          <div className="discard-area discard-area-right">
-            <span className="discard-area-label">{rightPlayer?.name} ({positionToWind(rightPlayer?.position)}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
-            <div className="discard-tiles-inner">
-              {(discardPiles[rightPlayer?.id] || []).map((tile, idx) => (
-                <Tile key={idx} tile={tile} size="small" />
-              ))}
-            </div>
-          </div>
+                {/* Right Discard (下家) */}
+                <div className="discard-area discard-area-right">
+                  <span className="discard-area-label">{rightPlayer?.name} ({positionToWind(rightPlayer?.position)}){rightPlayer?.id === dealerPlayer?.id && ' 莊'}</span>
+                  <div className="discard-tiles-inner">
+                    {(discardPiles[rightPlayer?.id] || []).map((tile, idx) =>
+                      renderDiscardTile(rightPlayer?.id, tile, idx, discardPiles[rightPlayer?.id] || [])
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           {/* Result Popup - shown when game ends, overlays center area */}
           {showResultPopup && gameResult && (
@@ -731,6 +756,7 @@ function GameScreen({
 // Result Popup Component - overlays center area when game ends
 function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, onReady, onLeave, windToChinese }) {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   if (!gameResult) return null;
 
@@ -823,10 +849,24 @@ function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, o
           >
             {isReady ? '已準備' : '準備'}
           </button>
-          <button className="result-leave-btn" onClick={onLeave}>
+          <button className="result-leave-btn" onClick={() => setShowLeaveConfirm(true)}>
             離開
           </button>
         </div>
+
+        {/* Leave Confirmation Popup */}
+        {showLeaveConfirm && (
+          <div className="result-leave-confirm-overlay">
+            <div className="result-leave-confirm-popup">
+              <div className="result-leave-confirm-message">確定要離開遊戲嗎？</div>
+              <div className="result-leave-confirm-warning">離開後將返回大廳。</div>
+              <div className="result-leave-confirm-buttons">
+                <button className="result-leave-confirm-btn result-leave-confirm-cancel" onClick={() => setShowLeaveConfirm(false)}>取消</button>
+                <button className="result-leave-confirm-btn result-leave-confirm-yes" onClick={() => { setShowLeaveConfirm(false); onLeave && onLeave(); }}>確定離開</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

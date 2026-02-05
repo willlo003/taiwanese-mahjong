@@ -259,7 +259,7 @@ export class PhaseTwo {
       }
     });
 
-    // Check for add to pong (碰上槓): tile in hand matches existing pong
+    // Check for add to pong (碰上槓): any tile in hand that matches existing pong
     melds.forEach((meld, meldIdx) => {
       console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
       if (meld.type === 'pong') {

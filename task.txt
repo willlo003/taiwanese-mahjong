@@ -1,6 +1,7 @@
 1, 雙嚮 x
-2, 暗槓
+2, 暗槓 x
 3, 聽
-4, popup no overlap
-5, reflash
-6, 摸牌
+4，搶槓
+5, popup no overlap x
+6, reflash
+7, 換牌

@@ -148,6 +148,8 @@ function App() {
         break;
 
       case 'tile_drawn':
+        console.log('[CLIENT] tile_drawn received:', data.payload);
+        console.log('[CLIENT] canSelfGang:', data.payload.canSelfGang, 'selfGangCombinations:', data.payload.selfGangCombinations);
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
@@ -191,6 +193,7 @@ function App() {
       case 'draw_flower_replaced':
         // Player drew flower/season tiles during gameplay - they were auto-replaced
         console.log('[CLIENT] draw_flower_replaced received:', data.payload);
+        console.log('[CLIENT] canSelfGang:', data.payload.canSelfGang, 'selfGangCombinations:', data.payload.selfGangCombinations);
         setHand(data.payload.hand);
         setTilesRemaining(data.payload.tilesRemaining);
         setHasDrawn(true);
