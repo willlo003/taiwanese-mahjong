@@ -51,7 +51,9 @@ function GameScreen({
   onResultReady = null,
   onResultLeave = null,
   winningTile = null,
-  winningCombination = null
+  winningCombination = null,
+  isRobGang = false,
+  robGangTile = null
 }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSelfDrawWinPopup, setShowSelfDrawWinPopup] = useState(false);
@@ -91,6 +93,17 @@ function GameScreen({
   const isWinningTile = (tile, winTile) => {
     if (!winTile || !tile) return false;
     return tile.suit === winTile.suit && tile.value === winTile.value;
+  };
+
+  // Helper to check if a meld contains the robbed gang tile (for 搶槓)
+  const isRobbedGangMeld = (meld, playerId) => {
+    if (!isRobGang || !robGangTile || !showResultPopup) return false;
+    // Only highlight the loser's (gang player's) meld
+    const loserId = gameResult?.loser;
+    if (playerId !== loserId) return false;
+    // Check if this meld is a gang that contains the robbed tile
+    if (meld.type !== 'gang') return false;
+    return meld.tiles.some(t => t.suit === robGangTile.suit && t.value === robGangTile.value);
   };
 
   // Helper to render winner's hand grouped by winning combination
@@ -373,10 +386,11 @@ function GameScreen({
               {playerMelds.map((meld, meldIdx) => {
                 // When game ends (showResultPopup), reveal all melds including 暗槓
                 const isConcealed = meld.concealed && !showResultPopup;
+                const isRobbedGang = isRobbedGangMeld(meld, player.id);
                 return (
-                  <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                  <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''} ${isRobbedGang ? 'robbed-gang-meld' : ''}`}>
                     {meld.tiles.map((tile, tileIdx) => (
-                      <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
+                      <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} className={isRobbedGang ? 'robbed-gang-tile' : ''} />
                     ))}
                   </div>
                 );
@@ -422,10 +436,11 @@ function GameScreen({
             {playerMelds.map((meld, meldIdx) => {
               // When game ends (showResultPopup), reveal all melds including 暗槓
               const isConcealed = meld.concealed && !showResultPopup;
+              const isRobbedGang = isRobbedGangMeld(meld, player.id);
               return (
-                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''} ${isRobbedGang ? 'robbed-gang-meld' : ''}`}>
                   {meld.tiles.map((tile, tileIdx) => (
-                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
+                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} className={isRobbedGang ? 'robbed-gang-tile' : ''} />
                   ))}
                 </div>
               );
@@ -438,10 +453,11 @@ function GameScreen({
             {[...playerMelds].reverse().map((meld, meldIdx) => {
               // When game ends (showResultPopup), reveal all melds including 暗槓
               const isConcealed = meld.concealed && !showResultPopup;
+              const isRobbedGang = isRobbedGangMeld(meld, player.id);
               return (
-                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''}`}>
+                <div key={`meld-${meldIdx}`} className={`meld-group ${isConcealed ? 'concealed-gang' : ''} ${isRobbedGang ? 'robbed-gang-meld' : ''}`}>
                   {meld.tiles.map((tile, tileIdx) => (
-                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} />
+                    <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} concealed={isConcealed} className={isRobbedGang ? 'robbed-gang-tile' : ''} />
                   ))}
                 </div>
               );
@@ -680,13 +696,16 @@ function GameScreen({
                     </div>
                   )}
                   {/* Melds - added to right in order claimed */}
-                  {myMelds.map((meld, meldIdx) => (
-                    <div key={`meld-${meldIdx}`} className={`meld-group ${meld.concealed ? 'concealed-gang' : ''}`}>
-                      {meld.tiles.map((tile, tileIdx) => (
-                        <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} size="small" />
-                      ))}
-                    </div>
-                  ))}
+                  {myMelds.map((meld, meldIdx) => {
+                    const isRobbedGang = isRobbedGangMeld(meld, playerInfo?.playerId);
+                    return (
+                      <div key={`meld-${meldIdx}`} className={`meld-group ${meld.concealed ? 'concealed-gang' : ''} ${isRobbedGang ? 'robbed-gang-meld' : ''}`}>
+                        {meld.tiles.map((tile, tileIdx) => (
+                          <Tile key={`meld-${meldIdx}-tile-${tileIdx}`} tile={tile} size="small" className={isRobbedGang ? 'robbed-gang-tile' : ''} />
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="my-hand">
@@ -727,7 +746,7 @@ function GameScreen({
         <div className="bottom-actions">
           <div className="player-actions">
             <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>
-              {tingEnabled ? '聽牌' : '打牌'}
+              打牌
             </button>
             <button
               className={`action-btn ${isTing ? 'action-btn-active' : ''} ${tingEnabled && !isTing ? 'action-btn-ting-enabled' : ''}`}

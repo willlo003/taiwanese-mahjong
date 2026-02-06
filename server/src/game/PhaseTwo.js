@@ -242,13 +242,23 @@ export class PhaseTwo {
     // Reset draw state
     game.playerHasDrawn.set(playerId, false);
 
-    // Broadcast the discard
+    // Send updated hand to the player who discarded
+    player.ws.send(JSON.stringify({
+      type: 'hand_update',
+      payload: {
+        hand: hand,
+        tilesRemaining: game.tileManager.getRemainingCount()
+      }
+    }));
+
+    // Broadcast the discard to all players
     game.broadcast({
       type: 'tile_discarded',
       payload: {
         playerId: playerId,
         tile: tile,
-        discardPile: discardPile
+        discardPile: discardPile,
+        handSize: hand.length
       }
     });
 
@@ -755,7 +765,12 @@ export class PhaseTwo {
         game.claimFreezeTimer = null;
       }
 
-      PhaseTwo.resolveClaims(game);
+      // Check if this is a rob gang period
+      if (game.pendingRobGang) {
+        PhaseTwo.resolveRobGangClaims(game);
+      } else {
+        PhaseTwo.resolveClaims(game);
+      }
     }
   }
 
@@ -958,8 +973,6 @@ export class PhaseTwo {
     melds.push(newMeld);
 
     const discardedBy = game.lastDiscardedBy;
-    game.lastDiscardedTile = null;
-    game.lastDiscardedBy = null;
 
     game.broadcast({
       type: 'gang_claimed',
@@ -985,9 +998,199 @@ export class PhaseTwo {
     let winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
     if (winResult.isWin) {
       console.log(`[CLAIM] Player ${player.name} wins immediately after claiming gang!`);
+      game.lastDiscardedTile = null;
+      game.lastDiscardedBy = null;
       PhaseThree.endGame(game, 'win_by_discard', playerId, winResult, discardedBy);
       return;
     }
+
+    // 搶槓 (Robbing the Kong) - Check if other players can win with the gang tile
+    console.log(`[搶槓] Checking if other players can win with gang tile: ${tile.suit}-${tile.value}`);
+    PhaseTwo.checkRobGangWin(game, tile, playerId, discardedBy);
+  }
+
+  /**
+   * 搶槓 (Robbing the Kong) - Check if other players can win with the gang tile
+   * @param {StatusManager} game - The game instance
+   * @param {object} tile - The gang tile
+   * @param {string} gangPlayerId - The player who claimed gang
+   * @param {string} originalDiscardedBy - The player who originally discarded the tile
+   */
+  static checkRobGangWin(game, tile, gangPlayerId, originalDiscardedBy) {
+    const robGangOptions = [];
+
+    game.players.forEach((player) => {
+      if (player.id === gangPlayerId) return;
+
+      const hand = game.playerHands.get(player.id);
+      const melds = game.melds.get(player.id);
+      const numRevealedSets = melds.length;
+
+      // Check if this player can win with the gang tile
+      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+      if (winResult.isWin) {
+        const handWithTile = [...hand, tile];
+        const allWinCombinations = WinValidator.findWinningCombinations(handWithTile, numRevealedSets, tile);
+        const winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
+
+        console.log(`[搶槓] 🎉 ${player.name} can win by robbing the kong!`);
+        robGangOptions.push({
+          playerId: player.id,
+          canHu: true,
+          winCombinations: winCombinations
+        });
+      }
+    });
+
+    if (robGangOptions.length === 0) {
+      // No one can rob the kong, continue with 補牌
+      console.log(`[搶槓] No one can rob the kong, continuing with 補牌...`);
+      PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
+      return;
+    }
+
+    // Store pending rob gang state
+    game.pendingRobGang = {
+      tile: tile,
+      gangPlayerId: gangPlayerId,
+      originalDiscardedBy: originalDiscardedBy,
+      options: robGangOptions
+    };
+
+    // Clear any existing claims
+    game.pendingClaims.clear();
+    game.claimWindowOpen = true;
+    game.playersWithClaimOptions.clear();
+    game.playersPassed.clear();
+
+    robGangOptions.forEach(option => {
+      game.playersWithClaimOptions.add(option.playerId);
+    });
+
+    const freezeTimeout = 5000;
+
+    // Notify all players of rob gang period
+    game.broadcast({
+      type: 'rob_gang_period_start',
+      payload: {
+        tile: tile,
+        gangPlayerId: gangPlayerId,
+        timeout: freezeTimeout
+      }
+    });
+
+    // Send claim options to players who can rob the kong
+    robGangOptions.forEach(option => {
+      const player = game.players.find(p => p.id === option.playerId);
+      player.ws.send(JSON.stringify({
+        type: 'claim_options',
+        payload: {
+          tile: tile,
+          canPong: false,
+          canGang: false,
+          canChow: false,
+          canShang: false,
+          canHu: true,
+          winCombinations: option.winCombinations,
+          isRobGang: true
+        }
+      }));
+    });
+
+    // Set timeout for rob gang period
+    game.claimFreezeTimer = setTimeout(() => {
+      console.log(`[搶槓] Timeout expired, checking claims...`);
+      PhaseTwo.resolveRobGangClaims(game);
+    }, freezeTimeout);
+  }
+
+  /**
+   * Resolve rob gang claims after timeout or all players responded
+   */
+  static resolveRobGangClaims(game) {
+    if (game.claimFreezeTimer) {
+      clearTimeout(game.claimFreezeTimer);
+      game.claimFreezeTimer = null;
+    }
+
+    game.claimWindowOpen = false;
+
+    const pendingRobGang = game.pendingRobGang;
+    if (!pendingRobGang) {
+      console.log(`[搶槓] No pending rob gang state`);
+      return;
+    }
+
+    // Check if anyone claimed hu
+    const huClaims = [];
+    game.pendingClaims.forEach((claim, claimPlayerId) => {
+      if (claim.type === 'hu') {
+        huClaims.push({ playerId: claimPlayerId, ...claim });
+      }
+    });
+
+    if (huClaims.length === 0) {
+      // No one claimed hu, continue with 補牌 (gang already completed)
+      console.log(`[搶槓] No one claimed 食, continuing with 補牌...`);
+      const isSelfGang = pendingRobGang.isSelfGang;
+      const gangPlayerId = pendingRobGang.gangPlayerId;
+      game.pendingRobGang = null;
+      game.pendingClaims.clear();
+
+      if (isSelfGang) {
+        // Gang already completed, just draw replacement tile
+        PhaseTwo.continueAfterSelfGang(game, gangPlayerId);
+      } else {
+        PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
+      }
+      return;
+    }
+
+    // Someone claimed hu - they win by robbing the kong (搶槓)
+    const tile = pendingRobGang.tile;
+    const gangPlayerId = pendingRobGang.gangPlayerId;
+
+    if (huClaims.length === 1) {
+      // Single winner
+      const winner = huClaims[0];
+      console.log(`[搶槓] 🎉 Player ${winner.playerId} wins by robbing the kong!`);
+
+      game.lastDiscardedTile = tile;
+      game.lastDiscardedBy = gangPlayerId;
+      game.pendingRobGang = null;
+      game.pendingClaims.clear();
+
+      PhaseThree.endGame(game, 'win_by_discard', winner.playerId,
+        { pattern: '搶槓', score: 0, winningCombination: winner.combination },
+        gangPlayerId);
+    } else {
+      // Multiple winners (雙嚮 or 三嚮)
+      console.log(`[搶槓] 🎉 Multiple players (${huClaims.length}) win by robbing the kong!`);
+
+      const validWinners = huClaims.map(claim => ({
+        playerId: claim.playerId,
+        winResult: { pattern: '搶槓', score: 0 },
+        winningCombination: claim.combination || null
+      }));
+
+      game.lastDiscardedTile = tile;
+      game.lastDiscardedBy = gangPlayerId;
+      game.pendingRobGang = null;
+      game.pendingClaims.clear();
+
+      PhaseThree.endGameMultipleWinners(game, validWinners, gangPlayerId);
+    }
+  }
+
+  /**
+   * Continue after gang claim (補牌) - called when no one robs the kong
+   */
+  static continueAfterGangClaim(game, playerId) {
+    const player = game.players.find(p => p.id === playerId);
+    const hand = game.playerHands.get(playerId);
+
+    game.lastDiscardedTile = null;
+    game.lastDiscardedBy = null;
 
     // Draw replacement tile
     console.log(`[GANG_CLAIM] Drawing replacement tile (補牌)...`);
@@ -1060,6 +1263,7 @@ export class PhaseTwo {
     console.log(`[SELF-GANG] Processing: ${combo.type} - ${combo.suit}-${combo.value}`);
 
     if (combo.type === 'concealed_gang') {
+      // 暗槓: Complete immediately (cannot be robbed)
       const tilesToRemove = combo.tiles;
       tilesToRemove.forEach(t => {
         const idx = hand.findIndex(ht => ht.id === t.id);
@@ -1070,7 +1274,21 @@ export class PhaseTwo {
       melds.push(newMeld);
       console.log(`[SELF-GANG] ✅ Concealed gang (暗槓): ${combo.suit}-${combo.value} x4`);
 
+      player.ws.send(JSON.stringify({
+        type: 'self_gang_claimed',
+        payload: { playerId, melds, hand }
+      }));
+
+      game.broadcastToOthers(playerId, {
+        type: 'self_gang_claimed',
+        payload: { playerId, melds }
+      });
+
+      // Continue directly to draw replacement tile
+      PhaseTwo.continueAfterSelfGang(game, playerId);
+
     } else if (combo.type === 'add_to_pong') {
+      // 碰上槓: Complete the gang FIRST, then check for 搶槓 before drawing
       const matchingTile = hand.find(t =>
         t.suit === combo.suit && t.value === combo.value
       );
@@ -1080,9 +1298,11 @@ export class PhaseTwo {
         return;
       }
 
+      // Step 1: Remove tile from hand
       const idx = hand.findIndex(ht => ht.id === matchingTile.id);
       if (idx !== -1) hand.splice(idx, 1);
 
+      // Step 2: Update meld from pong to gang
       const meldIdx = melds.findIndex(m =>
         m.type === 'pong' &&
         m.tiles[0].suit === combo.suit &&
@@ -1094,17 +1314,122 @@ export class PhaseTwo {
         melds[meldIdx].tiles.push(matchingTile);
         console.log(`[SELF-GANG] ✅ Add to pong (碰上槓): ${combo.suit}-${combo.value} x4`);
       }
+
+      // Step 3: Broadcast the gang completion to all players
+      player.ws.send(JSON.stringify({
+        type: 'self_gang_claimed',
+        payload: { playerId, melds, hand }
+      }));
+
+      game.broadcastToOthers(playerId, {
+        type: 'self_gang_claimed',
+        payload: { playerId, melds }
+      });
+
+      // Step 4: Check for 搶槓 BEFORE drawing replacement tile
+      console.log(`[SELF-GANG] 碰上槓 completed - now checking for 搶槓 with tile: ${matchingTile.suit}-${matchingTile.value}`);
+      PhaseTwo.checkRobGangWinForSelfGang(game, matchingTile, playerId);
+    }
+  }
+
+  /**
+   * 搶槓 for self-gang (碰上槓) - Check if other players can win with the gang tile
+   */
+  static checkRobGangWinForSelfGang(game, tile, gangPlayerId) {
+    const robGangOptions = [];
+
+    game.players.forEach((player) => {
+      if (player.id === gangPlayerId) return;
+
+      const hand = game.playerHands.get(player.id);
+      const melds = game.melds.get(player.id);
+      const numRevealedSets = melds.length;
+
+      // Check if this player can win with the gang tile
+      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+      if (winResult.isWin) {
+        const handWithTile = [...hand, tile];
+        const allWinCombinations = WinValidator.findWinningCombinations(handWithTile, numRevealedSets, tile);
+        const winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
+
+        console.log(`[搶槓] 🎉 ${player.name} can win by robbing the self-gang!`);
+        robGangOptions.push({
+          playerId: player.id,
+          canHu: true,
+          winCombinations: winCombinations
+        });
+      }
+    });
+
+    if (robGangOptions.length === 0) {
+      // No one can rob the kong, continue with 補牌 (gang already completed)
+      console.log(`[搶槓] No one can rob the self-gang, continuing with 補牌...`);
+      PhaseTwo.continueAfterSelfGang(game, gangPlayerId);
+      return;
     }
 
-    player.ws.send(JSON.stringify({
-      type: 'self_gang_claimed',
-      payload: { playerId, melds, hand }
-    }));
+    // Store pending rob gang state
+    game.pendingRobGang = {
+      tile: tile,
+      gangPlayerId: gangPlayerId,
+      originalDiscardedBy: null, // Self-gang has no original discarder
+      isSelfGang: true,
+      options: robGangOptions
+    };
 
-    game.broadcastToOthers(playerId, {
-      type: 'self_gang_claimed',
-      payload: { playerId, melds }
+    // Clear any existing claims
+    game.pendingClaims.clear();
+    game.claimWindowOpen = true;
+    game.playersWithClaimOptions.clear();
+    game.playersPassed.clear();
+
+    robGangOptions.forEach(option => {
+      game.playersWithClaimOptions.add(option.playerId);
     });
+
+    const freezeTimeout = 5000;
+
+    // Notify all players of rob gang period
+    game.broadcast({
+      type: 'rob_gang_period_start',
+      payload: {
+        tile: tile,
+        gangPlayerId: gangPlayerId,
+        timeout: freezeTimeout
+      }
+    });
+
+    // Send claim options to players who can rob the kong
+    robGangOptions.forEach(option => {
+      const player = game.players.find(p => p.id === option.playerId);
+      player.ws.send(JSON.stringify({
+        type: 'claim_options',
+        payload: {
+          tile: tile,
+          canPong: false,
+          canGang: false,
+          canChow: false,
+          canShang: false,
+          canHu: true,
+          winCombinations: option.winCombinations,
+          isRobGang: true
+        }
+      }));
+    });
+
+    // Set timeout for rob gang period
+    game.claimFreezeTimer = setTimeout(() => {
+      console.log(`[搶槓] Timeout expired, checking claims...`);
+      PhaseTwo.resolveRobGangClaims(game);
+    }, freezeTimeout);
+  }
+
+  /**
+   * Continue after self-gang (補牌) - called when no one robs the kong or for 暗槓
+   */
+  static continueAfterSelfGang(game, playerId) {
+    const player = game.players.find(p => p.id === playerId);
+    const hand = game.playerHands.get(playerId);
 
     // Draw replacement tile
     console.log(`[SELF-GANG] Drawing replacement tile (補牌)...`);

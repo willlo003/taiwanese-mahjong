@@ -35,6 +35,7 @@ export class StatusManager {
     this.pendingClaims = new Map(); // Store pending claims during freeze period
     this.claimFreezeTimer = null; // Timer for 3-second freeze period
     this.claimWindowOpen = false; // Whether claims are still allowed
+    this.pendingRobGang = null; // Store pending rob gang state (搶槓)
     this.flowerReplacementQueue = []; // Queue for flower replacement phase
     this.playerHasDrawn = new Map(); // Track if each player has drawn this turn
     this.playersWithClaimOptions = new Set(); // Track which players have claim options
@@ -115,6 +116,7 @@ export class StatusManager {
       this.claimFreezeTimer = null;
     }
     this.claimWindowOpen = false;
+    this.pendingRobGang = null;
 
     // Clear flower replacement state
     this.flowerReplacementQueue = [];
@@ -163,22 +165,31 @@ export class StatusManager {
       { suit: 'wind', value: 'east' },    // 東 (set 1: pong)
       { suit: 'wind', value: 'east' },    // 東
       { suit: 'wind', value: 'east' },    // 東
-      { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
-      { suit: 'wind', value: 'south' },   // 南
-      { suit: 'wind', value: 'south' },   // 南
-      { suit: 'wind', value: 'west' },    // 西 (set 3: pong)
-      { suit: 'wind', value: 'west' },    // 西
-      { suit: 'wind', value: 'west' },    // 西
+      // { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
+      // { suit: 'wind', value: 'south' },   // 南
+      // { suit: 'wind', value: 'south' },   // 南
+      // { suit: 'wind', value: 'west' },    // 西 (set 3: pong)
+      // { suit: 'wind', value: 'west' },    // 西
+      // { suit: 'wind', value: 'west' },    // 西
       { suit: 'wind', value: 'north' },   // 北 (set 4: pong)
       { suit: 'wind', value: 'north' },   // 北
       { suit: 'wind', value: 'north' },   // 北
       { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
-      { suit: 'dragon', value: 'red' },   // 中
-      { suit: 'dragon', value: 'red' },   // 中
-      { suit: 'dragon', value: 'red' },   // 中
+      // { suit: 'dragon', value: 'red' },   // 中
+      // { suit: 'dragon', value: 'red' },   // 中
+      // { suit: 'dragon', value: 'red' },   // 中
       { suit: 'wind', value: 'east' },   // 東
       // { suit: 'dot', value: 6 },
       // { suit: 'dot', value: 5 },  // 五筒
+      { suit: 'dot', value: 7 },
+      { suit: 'dot', value: 7 },  // 五筒
+      { suit: 'dot', value: 7 },  // 五筒
+      { suit: 'dot', value: 3 },
+      { suit: 'dot', value: 3 },  // 五筒
+      { suit: 'dot', value: 3 },  // 五筒
+      { suit: 'dot', value: 4 },
+      { suit: 'dot', value: 4 },  // 五筒
+      { suit: 'dot', value: 4 },  // 五筒
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
@@ -193,12 +204,12 @@ export class StatusManager {
       { suit: 'dot', value: 2 },  // 二筒 (set 2: pong)
       { suit: 'dot', value: 2 },  // 二筒
       { suit: 'dot', value: 2 },  // 二筒
-      { suit: 'dot', value: 3 },  // 三筒 (set 3: pong)
-      { suit: 'dot', value: 3 },  // 三筒
-      { suit: 'dot', value: 3 },  // 三筒
-      { suit: 'dot', value: 4 },  // 四筒 (set 4: pong)
-      { suit: 'dot', value: 4 },  // 四筒
-      { suit: 'dot', value: 4 },  // 四筒
+      { suit: 'dot', value: 9 },  // 三筒 (set 3: pong)
+      { suit: 'dot', value: 9 },  // 三筒
+      { suit: 'dot', value: 9 },  // 三筒
+      { suit: 'dot', value: 8 },  // 四筒 (set 4: pong)
+      { suit: 'dot', value: 8 },  // 四筒
+      { suit: 'dot', value: 8 },  // 四筒
       { suit: 'dot', value: 5 },  // 五筒 (set 5: pong)
       { suit: 'dot', value: 5 },  // 五筒
       { suit: 'dot', value: 5 },  // 五筒

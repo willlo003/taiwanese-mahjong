@@ -117,6 +117,9 @@ export class PhaseThree {
         allPlayerHands[player.id] = game.playerHands.get(player.id) || [];
       });
 
+      // Check if this is a 搶槓 (rob gang) win
+      const isRobGang = winResult?.pattern === '搶槓';
+
       game.broadcast({
         type: 'game_ended',
         payload: {
@@ -129,6 +132,8 @@ export class PhaseThree {
           score: winResult?.score,
           winningCombination: winResult?.winningCombination || null,
           winningTile: reason === 'win_by_discard' ? game.lastDiscardedTile : null,
+          isRobGang,
+          robGangTile: isRobGang ? game.lastDiscardedTile : null,
           currentDealer: dealerPlayer.id,
           nextDealer: game.players[nextDealerIndex].id,
           dealerRotated,
@@ -247,6 +252,9 @@ export class PhaseThree {
       allPlayerHands[player.id] = game.playerHands.get(player.id) || [];
     });
 
+    // Check if this is a 搶槓 (rob gang) win - check first winner's pattern
+    const isRobGang = winners.length > 0 && winners[0].winResult?.pattern === '搶槓';
+
     game.broadcast({
       type: 'game_ended',
       payload: {
@@ -258,6 +266,8 @@ export class PhaseThree {
         loserName: loser?.name,
         winningTile,
         winnerCombinations,
+        isRobGang,
+        robGangTile: isRobGang ? winningTile : null,
         currentDealer: dealerPlayer.id,
         nextDealer: game.players[nextDealerIndex].id,
         dealerRotated,

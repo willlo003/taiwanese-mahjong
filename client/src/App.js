@@ -47,6 +47,8 @@ function App() {
   const [isTing, setIsTing] = useState(false); // Whether current player is in 聽 status
   const [tingPlayers, setTingPlayers] = useState({}); // Track which players are in 聽 status { playerId: tingTileIndex }
   const [mustDiscardDrawnTile, setMustDiscardDrawnTile] = useState(false); // 聽 players must discard drawn tile
+  const [isRobGang, setIsRobGang] = useState(false); // Whether the win was by 搶槓 (robbing the kong)
+  const [robGangTile, setRobGangTile] = useState(null); // The gang tile that was robbed
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -359,6 +361,15 @@ function App() {
         setPendingClaim(null);
         break;
 
+      case 'rob_gang_period_start':
+        // 搶槓 period - similar to claim_period_start but for robbing the kong
+        console.log('[CLIENT] 搶槓 period started, tile:', data.payload.tile);
+        setClaimPeriodActive(true);
+        setLastDiscardedTile(data.payload.tile);
+        setLastDiscardedBy(data.payload.gangPlayerId);
+        setPendingClaim(null);
+        break;
+
       case 'claim_period_end':
         setClaimPeriodActive(false);
         setClaimOptions(null);
@@ -455,6 +466,15 @@ function App() {
           setWinningCombination(data.payload.winnerCombinations);
         } else {
           setWinningCombination(null);
+        }
+
+        // Store 搶槓 (rob gang) info for highlighting the gang tile
+        if (data.payload.isRobGang) {
+          setIsRobGang(true);
+          setRobGangTile(data.payload.robGangTile);
+        } else {
+          setIsRobGang(false);
+          setRobGangTile(null);
         }
 
         // Update melds with revealed melds from playerResults (暗槓 now face up)
@@ -723,6 +743,8 @@ function App() {
             onResultLeave={handleResultLeave}
             winningTile={winningTile}
             winningCombination={winningCombination}
+            isRobGang={isRobGang}
+            robGangTile={robGangTile}
           />
         </>
       )}
