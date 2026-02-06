@@ -53,11 +53,14 @@ function GameScreen({
   winningTile = null,
   winningCombination = null,
   isRobGang = false,
-  robGangTile = null
+  robGangTile = null,
+  turnTimerPlayerId = null,
+  turnTimerEnd = null
 }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSelfDrawWinPopup, setShowSelfDrawWinPopup] = useState(false);
   const [showSelfGangPopup, setShowSelfGangPopup] = useState(false);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(null);
   const [isReady, setIsReady] = useState(false);
 
   // Reset isReady when result popup is closed (new game starting)
@@ -66,6 +69,27 @@ function GameScreen({
       setIsReady(false);
     }
   }, [showResultPopup]);
+
+  // Turn timer countdown effect
+  useEffect(() => {
+    if (!turnTimerEnd || !turnTimerPlayerId) {
+      setTurnTimeLeft(null);
+      return;
+    }
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.ceil((turnTimerEnd - Date.now()) / 1000));
+      setTurnTimeLeft(remaining);
+    };
+
+    // Update immediately
+    updateTimer();
+
+    // Update every 100ms for smooth countdown
+    const interval = setInterval(updateTimer, 100);
+
+    return () => clearInterval(interval);
+  }, [turnTimerEnd, turnTimerPlayerId]);
 
   // Helper to convert wind/round to Chinese
   const windToChinese = (wind) => {
@@ -617,6 +641,15 @@ function GameScreen({
                   <span className="game-info-value phase-normal">{getPhaseDisplay()}</span>
                 )}
               </div>
+              {/* Turn Timer Display */}
+              {turnTimeLeft !== null && turnTimerPlayerId && gamePhase === 'draw_discard' && (
+                <div className="game-info-item turn-timer-display">
+                  <span className="game-info-label">⏱️</span>
+                  <span className={`game-info-value turn-timer-value ${turnTimeLeft <= 2 ? 'timer-urgent' : ''}`}>
+                    {players.find(p => p.id === turnTimerPlayerId)?.name || '?'}: {turnTimeLeft}s
+                  </span>
+                </div>
+              )}
             </div>
 
                   {/* Bottom Discard (自己) */}
@@ -749,6 +782,20 @@ function GameScreen({
               打牌
             </button>
             <button
+              className="action-btn action-btn-gang"
+              onClick={() => {
+                console.log('selfGangCombinations', selfGangCombinations);
+                if (selfGangCombinations && selfGangCombinations.length > 0) {
+                  // Show popup to choose gang combination
+                  setShowSelfGangPopup(true);
+                }
+              }}
+              disabled={!canSelfGang}
+              title='槓'
+            >
+              槓
+            </button>
+            <button
               className={`action-btn ${isTing ? 'action-btn-active' : ''} ${tingEnabled && !isTing ? 'action-btn-ting-enabled' : ''}`}
               onClick={() => {
                 if (!isTing) {
@@ -776,20 +823,6 @@ function GameScreen({
               title='自摸'
             >
               自摸
-            </button>
-            <button
-              className="action-btn action-btn-gang"
-              onClick={() => {
-                console.log('selfGangCombinations', selfGangCombinations);
-                if (selfGangCombinations && selfGangCombinations.length > 0) {
-                  // Show popup to choose gang combination
-                  setShowSelfGangPopup(true);
-                }
-              }}
-              disabled={!canSelfGang}
-              title='槓'
-            >
-              槓
             </button>
             <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
           </div>

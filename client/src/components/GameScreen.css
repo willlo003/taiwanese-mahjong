@@ -484,6 +484,29 @@
   100% { content: ''; }
 }
 
+/* Turn Timer Display */
+.turn-timer-display {
+  background: rgba(255, 152, 0, 0.3);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 152, 0, 0.5);
+}
+
+.turn-timer-value {
+  color: #FFD700 !important;
+  font-weight: 700 !important;
+}
+
+.turn-timer-value.timer-urgent {
+  color: #ff4444 !important;
+  animation: timerPulse 0.5s infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Top Discard Area (對家) - same as bottom but rotated 180° */
 /* Entire container rotated so tiles appear from opponent's perspective */
 .discard-area-top {

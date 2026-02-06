@@ -9,7 +9,7 @@ import { PhaseThree } from './PhaseThree.js';
  * Handles game initialization, state tracking, and coordinates between phases
  */
 export class StatusManager {
-  constructor(players, broadcastFn) {
+  constructor(players, broadcastFn, considerTimeout = 5) {
     this.players = players;
     this.broadcast = broadcastFn;
     this.tileManager = new TileManager();
@@ -43,6 +43,11 @@ export class StatusManager {
     this.readyPlayers = new Set(); // Track which players are ready for next game
     this.tingStatus = new Map(); // Track which players are in 聽 status
     this.tingTileIndices = new Map(); // Track which tile index in discard pile was the 聽 declaration tile
+
+    // Turn timer settings
+    this.considerTimeout = considerTimeout; // Seconds for turn timer (configurable 3-8)
+    this.turnTimer = null; // Timer for current player's turn
+    this.turnTimerPlayerId = null; // Track which player the timer is for
   }
 
   start() {

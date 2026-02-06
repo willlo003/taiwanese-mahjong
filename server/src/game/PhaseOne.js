@@ -202,5 +202,8 @@ export class PhaseOne {
         mustDiscard: true // Dealer must discard one of their 17 tiles
       }
     });
+
+    // Start turn timer for dealer's first turn
+    PhaseTwo.startTurnTimer(game, dealer.id);
   }
 }

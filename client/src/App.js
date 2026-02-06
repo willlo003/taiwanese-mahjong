@@ -49,6 +49,9 @@ function App() {
   const [mustDiscardDrawnTile, setMustDiscardDrawnTile] = useState(false); // 聽 players must discard drawn tile
   const [isRobGang, setIsRobGang] = useState(false); // Whether the win was by 搶槓 (robbing the kong)
   const [robGangTile, setRobGangTile] = useState(null); // The gang tile that was robbed
+  const [considerTimeout, setConsiderTimeout] = useState(5); // Turn timer setting (3-8 seconds)
+  const [turnTimerPlayerId, setTurnTimerPlayerId] = useState(null); // Player whose turn timer is active
+  const [turnTimerEnd, setTurnTimerEnd] = useState(null); // When the turn timer ends (timestamp)
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -66,6 +69,14 @@ function App() {
 
       case 'player_list':
         setPlayers(data.payload.players);
+        // Update consider time if provided
+        if (data.payload.considerTimeout !== undefined) {
+          setConsiderTimeout(data.payload.considerTimeout);
+        }
+        break;
+
+      case 'consider_time_updated':
+        setConsiderTimeout(data.payload.considerTimeout);
         break;
 
       case 'game_started':
@@ -102,7 +113,16 @@ function App() {
         setIsTing(false);
         setTingPlayers({});
         setMustDiscardDrawnTile(false);
+        // Reset turn timer for new game
+        setTurnTimerPlayerId(null);
+        setTurnTimerEnd(null);
         soundManager.gameStart();
+        break;
+
+      case 'turn_timer_start':
+        // Turn timer started for a player
+        setTurnTimerPlayerId(data.payload.playerId);
+        setTurnTimerEnd(Date.now() + data.payload.timeout);
         break;
 
       case 'game_state_sync':
@@ -633,6 +653,10 @@ function App() {
     sendMessage({ type: 'leave_game', payload: {} });
   };
 
+  const handleSetConsiderTime = (time) => {
+    sendMessage({ type: 'set_consider_time', payload: { time } });
+  };
+
   const handleResultReady = () => {
     // Send ready message to server
     sendMessage({ type: 'action', payload: { type: 'result_ready' } });
@@ -688,6 +712,8 @@ function App() {
           onRandomSeats={handleRandomSeats}
           onSelectSeat={handleSelectSeat}
           onStartGame={handleStartGame}
+          considerTimeout={considerTimeout}
+          onSetConsiderTime={handleSetConsiderTime}
         />
       )}
 
@@ -745,6 +771,8 @@ function App() {
             winningCombination={winningCombination}
             isRobGang={isRobGang}
             robGangTile={robGangTile}
+            turnTimerPlayerId={turnTimerPlayerId}
+            turnTimerEnd={turnTimerEnd}
           />
         </>
       )}

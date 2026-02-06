@@ -8,6 +8,90 @@ import GameUtils from './GameUtils.js';
  */
 export class PhaseTwo {
   /**
+   * Start turn timer for a player
+   * @param {StatusManager} game - The game instance
+   * @param {string} playerId - The player's ID
+   */
+  static startTurnTimer(game, playerId) {
+    // Clear any existing turn timer
+    PhaseTwo.clearTurnTimer(game);
+
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    const timeoutMs = game.considerTimeout * 1000;
+    game.turnTimerPlayerId = playerId;
+
+    console.log(`[TURN_TIMER] Starting ${game.considerTimeout}s timer for ${player.name}`);
+
+    // Broadcast timer start to all players
+    game.broadcast({
+      type: 'turn_timer_start',
+      payload: {
+        playerId: playerId,
+        timeout: timeoutMs
+      }
+    });
+
+    game.turnTimer = setTimeout(() => {
+      console.log(`[TURN_TIMER] ⏰ Timeout for ${player.name}, auto-discarding...`);
+      PhaseTwo.autoDiscardOnTimeout(game, playerId);
+    }, timeoutMs);
+  }
+
+  /**
+   * Clear turn timer
+   * @param {StatusManager} game - The game instance
+   */
+  static clearTurnTimer(game) {
+    if (game.turnTimer) {
+      clearTimeout(game.turnTimer);
+      game.turnTimer = null;
+      game.turnTimerPlayerId = null;
+    }
+  }
+
+  /**
+   * Auto-discard tile when turn timer expires
+   * @param {StatusManager} game - The game instance
+   * @param {string} playerId - The player's ID
+   */
+  static autoDiscardOnTimeout(game, playerId) {
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Verify it's still this player's turn
+    const playerIndex = game.players.indexOf(player);
+    if (playerIndex !== game.currentPlayerIndex) {
+      console.log(`[TURN_TIMER] Not ${player.name}'s turn anymore, skipping auto-discard`);
+      return;
+    }
+
+    const hand = game.playerHands.get(playerId);
+    if (!hand || hand.length === 0) {
+      console.log(`[TURN_TIMER] ${player.name} has no tiles to discard`);
+      return;
+    }
+
+    // Determine which tile to discard:
+    // 1. If player has drawn a tile (drawnTile), discard that
+    // 2. Otherwise, discard the rightmost tile in hand
+    let tileToDiscard = null;
+
+    if (game.drawnTile && hand.some(t => t.id === game.drawnTile.id)) {
+      tileToDiscard = game.drawnTile;
+      console.log(`[TURN_TIMER] Auto-discarding drawn tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
+    } else {
+      // Discard rightmost tile (last in hand array)
+      tileToDiscard = hand[hand.length - 1];
+      console.log(`[TURN_TIMER] Auto-discarding rightmost tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
+    }
+
+    // Perform the discard
+    PhaseTwo.handleDiscard(game, playerId, tileToDiscard);
+  }
+
+  /**
    * Handle player action during their turn
    * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
@@ -218,6 +302,9 @@ export class PhaseTwo {
    * @param {object} tile - The tile to discard
    */
   static handleDiscard(game, playerId, tile) {
+    // Clear turn timer when player discards
+    PhaseTwo.clearTurnTimer(game);
+
     const player = game.players.find(p => p.id === playerId);
     const hand = game.playerHands.get(playerId);
 
@@ -626,7 +713,8 @@ export class PhaseTwo {
       game.playersWithClaimOptions.add(option.playerId);
     });
 
-    const freezeTimeout = 5000;
+    // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
+    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
 
     // Notify all players of claim options and freeze period
     game.broadcast({
@@ -1067,7 +1155,8 @@ export class PhaseTwo {
       game.playersWithClaimOptions.add(option.playerId);
     });
 
-    const freezeTimeout = 5000;
+    // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
+    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
 
     // Notify all players of rob gang period
     game.broadcast({
@@ -1387,7 +1476,8 @@ export class PhaseTwo {
       game.playersWithClaimOptions.add(option.playerId);
     });
 
-    const freezeTimeout = 5000;
+    // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
+    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
 
     // Notify all players of rob gang period
     game.broadcast({
@@ -1707,6 +1797,9 @@ export class PhaseTwo {
         payload: { playerId, tilesRemaining: game.tileManager.getRemainingCount(), handSize: hand.length }
       });
     }
+
+    // Start turn timer after player draws
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**

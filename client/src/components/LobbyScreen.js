@@ -1,7 +1,7 @@
 import React from 'react';
 import './LobbyScreen.css';
 
-function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame }) {
+function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame, considerTimeout = 5, onSetConsiderTime }) {
   // Find the current player from the players list
   const currentPlayer = players.find(p => p.id === playerInfo?.playerId);
   const hasSeat = currentPlayer?.position !== null && currentPlayer?.position !== undefined;
@@ -9,6 +9,13 @@ function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStart
   // Count players who have seats (selecting seat = ready)
   const seatedPlayers = players.filter(p => p.position !== null && p.position !== undefined);
   const allSeated = seatedPlayers.length === 4;
+
+  const handleConsiderTimeChange = (e) => {
+    const time = parseInt(e.target.value, 10);
+    if (onSetConsiderTime && time >= 3 && time <= 8) {
+      onSetConsiderTime(time);
+    }
+  };
 
   const handleSeatClick = (seatPosition) => {
     const seatPlayer = players.find(p => p.position === seatPosition);
@@ -83,6 +90,21 @@ function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStart
             ✓ You are seated! Waiting for other players...
           </div>
         )}
+
+        {/* Consider Time Setting */}
+        <div className="consider-time-setting">
+          <label htmlFor="consider-time">⏱️ Turn Timer: </label>
+          <select
+            id="consider-time"
+            value={considerTimeout}
+            onChange={handleConsiderTimeChange}
+            className="consider-time-select"
+          >
+            {[3, 4, 5, 6, 7, 8].map(time => (
+              <option key={time} value={time}>{time} seconds</option>
+            ))}
+          </select>
+        </div>
 
         {allSeated && isEastPlayer && (
           <button className="start-button" onClick={onStartGame}>
