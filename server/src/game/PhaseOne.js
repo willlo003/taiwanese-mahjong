@@ -1,4 +1,5 @@
 import { PhaseTwo } from './PhaseTwo.js';
+import GameUtils from './GameUtils.js';
 
 /**
  * Phase One: Flower Replacement (補花)
@@ -7,7 +8,7 @@ import { PhaseTwo } from './PhaseTwo.js';
 export class PhaseOne {
   /**
    * Start the flower replacement phase (補花)
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    */
   static startFlowerReplacementPhase(game) {
     console.log('=== Starting flower replacement phase (補花) ===');
@@ -35,7 +36,7 @@ export class PhaseOne {
 
   /**
    * Process flower replacement for one player at a time
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    */
   static processNextPlayerFlowerReplacement(game) {
     console.log('=== processNextPlayerFlowerReplacement ===');
@@ -49,7 +50,7 @@ export class PhaseOne {
     console.log(`Checking player ${player.name} (index ${playerIndex}), hand size: ${hand.length}`);
 
     // Find all bonus tiles in hand
-    const bonusTiles = hand.filter(tile => game.isBonusTile(tile));
+    const bonusTiles = hand.filter(tile => GameUtils.isBonusTile(tile));
     console.log(`Found ${bonusTiles.length} bonus tiles:`, bonusTiles.map(t => `${t.type}-${t.value}`));
 
     if (bonusTiles.length > 0) {
@@ -86,7 +87,7 @@ export class PhaseOne {
         let newTile = game.tileManager.drawTile();
 
         // Keep drawing if we get bonus tiles
-        while (newTile && game.isBonusTile(newTile)) {
+        while (newTile && GameUtils.isBonusTile(newTile)) {
           console.log(`[FLOWER_REPLACEMENT] ${player.name} drew another bonus tile: ${newTile.suit}-${newTile.value}, replacing...`);
           revealed.push(newTile);
           newTile = game.tileManager.drawTile();
@@ -146,7 +147,7 @@ export class PhaseOne {
 
   /**
    * Complete the flower replacement phase and start the main game
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    */
   static completeFlowerReplacementPhase(game) {
     console.log('=== Flower replacement phase complete ===');

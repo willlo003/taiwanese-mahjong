@@ -5,7 +5,7 @@
 export class PhaseThree {
   /**
    * End the game
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} reason - The reason for ending ('win_by_discard', 'win_self_draw', 'draw')
    * @param {string} winnerId - The winner's ID (null for draw)
    * @param {object} winResult - The win result object
@@ -61,11 +61,23 @@ export class PhaseThree {
       }
 
       // For 出沖 (win by discard), add the discarded tile to the winner's hand
+      // and remove it from the loser's discard pile
       if (reason === 'win_by_discard' && winnerId && game.lastDiscardedTile) {
         const winnerHand = game.playerHands.get(winnerId);
         if (winnerHand) {
           winnerHand.push(game.lastDiscardedTile);
           console.log(`[END_GAME] Added discarded tile ${game.lastDiscardedTile.suit}-${game.lastDiscardedTile.value} to winner's hand`);
+        }
+        // Remove the winning tile from the loser's discard pile
+        if (loserId) {
+          const loserDiscardPile = game.discardPiles.get(loserId);
+          if (loserDiscardPile) {
+            const tileIdx = loserDiscardPile.findIndex(t => t.id === game.lastDiscardedTile.id);
+            if (tileIdx !== -1) {
+              loserDiscardPile.splice(tileIdx, 1);
+              console.log(`[END_GAME] Removed winning tile from loser's discard pile`);
+            }
+          }
         }
       }
 
@@ -169,6 +181,38 @@ export class PhaseThree {
 
     console.log(`[END_GAME_MULTI] ${winType}: Dealer stays at ${dealerPlayer.name}`);
 
+    // For 雙嚮/三嚮 (win by discard), add the discarded tile to each winner's hand
+    // and remove it from the loser's discard pile
+    const winningTile = game.lastDiscardedTile;
+    if (winningTile) {
+      // Add the winning tile to each winner's hand
+      winnerIds.forEach(winnerId => {
+        const winnerHand = game.playerHands.get(winnerId);
+        if (winnerHand) {
+          winnerHand.push(winningTile);
+          console.log(`[END_GAME_MULTI] Added winning tile ${winningTile.suit}-${winningTile.value} to winner ${winnerId}'s hand`);
+        }
+      });
+
+      // Remove the winning tile from the loser's discard pile
+      if (loserId) {
+        const loserDiscardPile = game.discardPiles.get(loserId);
+        if (loserDiscardPile) {
+          const tileIdx = loserDiscardPile.findIndex(t => t.id === winningTile.id);
+          if (tileIdx !== -1) {
+            loserDiscardPile.splice(tileIdx, 1);
+            console.log(`[END_GAME_MULTI] Removed winning tile from loser's discard pile`);
+          }
+        }
+      }
+    }
+
+    // Build winner combinations map
+    const winnerCombinations = {};
+    winners.forEach(w => {
+      winnerCombinations[w.playerId] = w.winningCombination || null;
+    });
+
     // Build player results with revealed hands
     const playerResults = game.players.map(player => {
       const isWinner = winnerIds.includes(player.id);
@@ -212,6 +256,8 @@ export class PhaseThree {
         winnerNames: winners.map(w => game.players.find(p => p.id === w.playerId)?.name),
         loser: loserId,
         loserName: loser?.name,
+        winningTile,
+        winnerCombinations,
         currentDealer: dealerPlayer.id,
         nextDealer: game.players[nextDealerIndex].id,
         dealerRotated,

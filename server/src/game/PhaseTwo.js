@@ -1,5 +1,6 @@
 import { WinValidator } from './WinValidator.js';
 import { PhaseThree } from './PhaseThree.js';
+import GameUtils from './GameUtils.js';
 
 /**
  * Phase Two: Draw/Discard (打牌)
@@ -8,13 +9,92 @@ import { PhaseThree } from './PhaseThree.js';
 export class PhaseTwo {
   /**
    * Handle player action during their turn
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
    * @param {object} action - The action to perform
    */
   static handlePlayerAction(game, playerId, action) {
     const player = game.players.find(p => p.id === playerId);
     if (!player) return;
+
+    const playerIndex = game.players.indexOf(player);
+
+    // Special handling for 'hu' action
+    // If it's the player's turn and claim window is closed, treat as self-draw win (自摸)
+    // If claim window is open, treat as claiming win from discard (出沖)
+    if (action.type === 'hu') {
+      const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
+
+      if (isSelfDraw) {
+        // Self-draw win attempt - handle immediately
+        PhaseTwo.handleHu(game, playerId, action.combination);
+        return;
+      } else {
+        // Win by claiming discard - register the claim with combination
+        const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles, action.combination);
+        if (registered) {
+          player.ws.send(JSON.stringify({
+            type: 'claim_registered',
+            payload: { claimType: action.type }
+          }));
+        }
+        return;
+      }
+    }
+
+    // Other claim actions can be done by any player during claim window (before turn check)
+    const claimActions = ['pong', 'gang', 'chow', 'shang'];
+
+    if (claimActions.includes(action.type)) {
+      // Register the claim (will be resolved after freeze period)
+      const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles);
+      if (registered) {
+        player.ws.send(JSON.stringify({
+          type: 'claim_registered',
+          payload: { claimType: action.type }
+        }));
+      }
+      return;
+    }
+
+    // Handle pass action - player explicitly passes on claiming
+    if (action.type === 'pass') {
+      PhaseTwo.handlePass(game, playerId);
+      return;
+    }
+
+    // Handle cancel claim action - player cancels their previous claim
+    if (action.type === 'cancel_claim') {
+      PhaseTwo.handleCancelClaim(game, playerId);
+      return;
+    }
+
+    // Handle result_ready action - player is ready for next game (Phase Three)
+    if (action.type === 'result_ready') {
+      game.handleResultReady(playerId);
+      return;
+    }
+
+    // Handle self-gang action - player performs 暗槓 or 碰上槓 during their turn
+    if (action.type === 'self_gang') {
+      PhaseTwo.handleSelfGang(game, playerId, action.combinations);
+      return;
+    }
+
+    // Handle ting (聽) action - player declares ready hand
+    if (action.type === 'ting') {
+      PhaseTwo.handleTing(game, playerId, action.tile);
+      return;
+    }
+
+    // Verify it's the player's turn for non-claim actions
+    if (playerIndex !== game.currentPlayerIndex) {
+      player.ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Not your turn'
+      }));
+      return;
+    }
 
     switch (action.type) {
       case 'draw':
@@ -23,27 +103,17 @@ export class PhaseTwo {
       case 'discard':
         PhaseTwo.handleDiscard(game, playerId, action.tile);
         break;
-      case 'hu':
-        PhaseTwo.handleHu(game, playerId, action.combination);
-        break;
-      case 'self_gang':
-        PhaseTwo.handleSelfGang(game, playerId, action.combinations);
-        break;
-      case 'claim':
-        PhaseTwo.registerClaim(game, playerId, action.claimType, action.tiles);
-        break;
-      case 'pass':
-        PhaseTwo.handlePass(game, playerId);
-        break;
-      case 'cancel_claim':
-        PhaseTwo.handleCancelClaim(game, playerId);
-        break;
+      default:
+        player.ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Unknown action'
+        }));
     }
   }
 
   /**
    * Handle draw action
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
    */
   static handleDraw(game, playerId) {
@@ -143,7 +213,7 @@ export class PhaseTwo {
 
   /**
    * Handle discard action
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
    * @param {object} tile - The tile to discard
    */
@@ -188,7 +258,7 @@ export class PhaseTwo {
 
   /**
    * Handle Hu (win) action
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
    * @param {Object} combination - The selected winning combination (optional)
    */
@@ -207,9 +277,6 @@ export class PhaseTwo {
     const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
     console.log(`[HU] isSelfDraw: ${isSelfDraw}`);
 
-    // Import PhaseThree dynamically to avoid circular dependency
-    const { PhaseThree } = require('./PhaseThree.js');
-
     if (isSelfDraw) {
       // 自摸 - self-draw win, no loser (all others pay)
       console.log(`[HU] Player ${player?.name} wins by self-draw (自摸)`);
@@ -222,8 +289,97 @@ export class PhaseTwo {
   }
 
   /**
+   * Handle ting (聽) action - player declares ready hand
+   * @param {StatusManager} game - The game instance
+   * @param {string} playerId - The player's ID
+   * @param {Object} tile - The tile to discard when declaring 聽
+   */
+  static handleTing(game, playerId, tile) {
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    console.log('============================================================');
+    console.log(`[TING] ${player.name} is declaring 聽 and discarding a tile...`);
+
+    // Check if player is already in 聽 status
+    if (game.tingStatus.get(playerId)) {
+      console.log(`[TING] ❌ ${player.name} is already in 聽 status`);
+      player.ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Already in 聽 status'
+      }));
+      return;
+    }
+
+    const hand = game.playerHands.get(playerId);
+
+    // Check if hand size is valid for discarding: 3n + 2 where n = 0-5
+    const isValidHandSize = hand.length >= 2 && hand.length <= 17 && (hand.length - 2) % 3 === 0;
+    if (!isValidHandSize) {
+      console.log(`[TING] ❌ ${player.name} cannot declare 聽 - invalid hand size (${hand.length} tiles)`);
+      player.ws.send(JSON.stringify({
+        type: 'error',
+        message: `Cannot declare 聽 - invalid hand size (${hand.length} tiles)`
+      }));
+      return;
+    }
+
+    const tileIndex = hand.findIndex(t => t.id === tile.id);
+
+    if (tileIndex === -1) {
+      console.log(`[TING] ❌ ${player.name} tried to discard tile not in hand: ${tile.suit}-${tile.value}`);
+      return;
+    }
+
+    // Remove tile from hand
+    hand.splice(tileIndex, 1);
+
+    // Add to discard pile with rotated flag
+    const discardPile = game.discardPiles.get(playerId);
+    const tingTile = { ...tile, rotated: true }; // Mark tile as rotated for 聽 declaration
+    discardPile.push(tingTile);
+
+    // Set 聽 status for this player
+    game.tingStatus.set(playerId, true);
+    game.tingTileIndices.set(playerId, discardPile.length - 1); // Store the index of the 聽 tile
+
+    console.log(`[TING] ✅ ${player.name} declared 聽 and discarded: ${tile.suit}-${tile.value}`);
+    console.log(`[TING] Hand size: ${hand.length} tiles`);
+
+    // Store last discarded tile for pong/gang/chow/hu
+    game.lastDiscardedTile = tile;
+    game.lastDiscardedBy = playerId;
+
+    // Send updated hand and discard pile to the player who declared 聽
+    player.ws.send(JSON.stringify({
+      type: 'hand_update',
+      payload: {
+        hand: hand,
+        tilesRemaining: game.tileManager.getRemainingCount(),
+        discardPile: discardPile,
+        isTing: true // Notify client they are now in 聽 status
+      }
+    }));
+
+    // Broadcast 聽 declaration to all players
+    game.broadcast({
+      type: 'player_ting',
+      payload: {
+        playerId: playerId,
+        tile: tingTile,
+        discardPile: discardPile,
+        handSize: hand.length,
+        tingTileIndex: discardPile.length - 1
+      }
+    });
+
+    // Check if other players can pong/gang/chow/hu
+    PhaseTwo.checkClaimActions(game, tile, playerId);
+  }
+
+  /**
    * Check for self-gang possibilities (暗槓 and 碰上槓)
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {array} hand - The player's hand
    * @param {array} melds - The player's melds
    * @returns {array} - Array of gang options
@@ -283,41 +439,11 @@ export class PhaseTwo {
     return gangOptions;
   }
 
-  /**
-   * Helper function to deduplicate claim combinations based on tile sets
-   */
-  static deduplicateClaims(claims) {
-    const seen = new Set();
-    return claims.filter(claim => {
-      const tiles = claim.tiles || claim.displayTiles || [];
-      const key = claim.type + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
-
-  /**
-   * Helper function to deduplicate win combinations based on displayTiles
-   */
-  static deduplicateWinCombinations(combinations) {
-    const seen = new Set();
-    return combinations.filter(combo => {
-      const tiles = combo.displayTiles || combo.pairTiles || [];
-      const key = combo.lastTileRole + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
+  // deduplicateClaims and deduplicateWinCombinations moved to GameUtils.js
 
   /**
    * Check what claim actions other players can take on a discarded tile
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {object} tile - The discarded tile
    * @param {string} discardedBy - The player who discarded
    */
@@ -347,6 +473,9 @@ export class PhaseTwo {
         t.suit === tile.suit && t.value === tile.value
       );
 
+      // Check if player is in 聽牌 mode - they can only claim 食 (hu)
+      const isTing = game.tingStatus.get(player.id);
+
       const possibleClaims = [];
 
       // Check for 食 (Hu/Win)
@@ -360,8 +489,27 @@ export class PhaseTwo {
       if (canHu) {
         const handWithDiscardedTile = [...hand, tile];
         const allWinCombinations = WinValidator.findWinningCombinations(handWithDiscardedTile, numRevealedSets, tile);
-        winCombinations = PhaseTwo.deduplicateWinCombinations(allWinCombinations);
+        winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
         console.log(`  Win combinations found: ${allWinCombinations.length} (${winCombinations.length} unique)`);
+      }
+
+      // Skip 碰/槓/上 claims for players in 聽牌 mode - they can only claim 食
+      if (isTing) {
+        console.log(`[CLAIM] 🀄 ${player.name} is in 聽牌 mode - can only claim 食 (hu)`);
+        if (canHu) {
+          claimOptions.push({
+            playerId: player.id,
+            canPong: false,
+            canGang: false,
+            canChow: false,
+            canShang: false,
+            canHu: true,
+            winCombinations: winCombinations,
+            isNextPlayer: player.id === nextPlayerId,
+            possibleClaims: []
+          });
+        }
+        return; // Skip to next player
       }
 
       // Pong: 3 same tiles (2 from hand + discarded)
@@ -434,7 +582,7 @@ export class PhaseTwo {
       }
 
       if (possibleClaims.length > 0 || canHu) {
-        const uniquePossibleClaims = PhaseTwo.deduplicateClaims(possibleClaims);
+        const uniquePossibleClaims = GameUtils.deduplicateClaims(possibleClaims);
         claimOptions.push({
           playerId: player.id,
           canPong: matchingTiles.length >= 2,
@@ -511,7 +659,7 @@ export class PhaseTwo {
   /**
    * Register a claim from a player
    */
-  static registerClaim(game, playerId, claimType, tiles = null) {
+  static registerClaim(game, playerId, claimType, tiles = null, combination = null) {
     if (!game.claimWindowOpen) {
       console.log(`[CLAIM] Claim window closed, ignoring ${claimType} from ${playerId}`);
       return false;
@@ -529,7 +677,8 @@ export class PhaseTwo {
       type: claimType,
       priority: priority,
       tiles: tiles,
-      playerId: playerId
+      playerId: playerId,
+      combination: combination // Store winning combination for 'hu' claims
     });
 
     game.playersPassed.delete(playerId);
@@ -650,7 +799,8 @@ export class PhaseTwo {
       console.log(`[CLAIM] Multiple Hu claims detected: ${huClaims.length} winners`);
       const validWinners = huClaims.map(claim => ({
         playerId: claim.playerId,
-        winResult: { pattern: '出沖', score: 0 }
+        winResult: { pattern: '出沖', score: 0 },
+        winningCombination: claim.combination || null
       }));
 
       const winnerIds = validWinners.map(w => w.playerId);
@@ -661,7 +811,6 @@ export class PhaseTwo {
         payload: { claimedBy: winnerIds, claimType: 'hu' }
       });
 
-      const { PhaseThree } = require('./PhaseThree.js');
       PhaseThree.endGameMultipleWinners(game, validWinners, game.lastDiscardedBy);
       return;
     }
@@ -684,7 +833,7 @@ export class PhaseTwo {
 
     switch (highestClaim.type) {
       case 'hu':
-        PhaseTwo.executeHuClaim(game, highestClaim.playerId, highestClaim.tiles);
+        PhaseTwo.executeHuClaim(game, highestClaim.playerId, highestClaim);
         break;
       case 'gang':
         PhaseTwo.executeGangClaim(game, highestClaim.playerId);
@@ -836,7 +985,6 @@ export class PhaseTwo {
     let winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
     if (winResult.isWin) {
       console.log(`[CLAIM] Player ${player.name} wins immediately after claiming gang!`);
-      const { PhaseThree } = require('./PhaseThree.js');
       PhaseThree.endGame(game, 'win_by_discard', playerId, winResult, discardedBy);
       return;
     }
@@ -1125,15 +1273,17 @@ export class PhaseTwo {
 
     console.log(`[WIN] 🎉 ${player?.name} is claiming 食 (hu) to win!`);
     console.log(`[WIN] Winning tile: ${discardedTile?.suit}-${discardedTile?.value} (discarded by ${discardedByPlayer?.name})`);
+    console.log(`[WIN] claimData:`, JSON.stringify(claimData));
 
     // Extract the winning combination from claim data
     const winningCombination = claimData?.combination || null;
     if (winningCombination) {
       console.log(`[WIN] Winning combination:`, JSON.stringify(winningCombination));
+    } else {
+      console.log(`[WIN] No winning combination found in claimData`);
     }
 
     const loserId = game.lastDiscardedBy;
-    const { PhaseThree } = require('./PhaseThree.js');
     PhaseThree.endGame(game, 'win_by_discard', playerId, { pattern: '出沖', score: 0, winningCombination }, loserId);
   }
 
@@ -1248,12 +1398,11 @@ export class PhaseTwo {
     const bonusTilesDrawn = [];
 
     if (!tile) {
-      const { PhaseThree } = require('./PhaseThree.js');
       PhaseThree.endGame(game, 'draw');
       return null;
     }
 
-    while (tile && PhaseTwo.isBonusTile(tile)) {
+    while (tile && GameUtils.isBonusTile(tile)) {
       console.log(`[DRAW] 🌸 Drew bonus tile: ${tile.suit}-${tile.value}, replacing...`);
       bonusTilesDrawn.push(tile);
       const revealed = game.revealedBonusTiles.get(playerId);
@@ -1261,7 +1410,6 @@ export class PhaseTwo {
       tile = game.tileManager.drawTile();
 
       if (!tile) {
-        const { PhaseThree } = require('./PhaseThree.js');
         PhaseThree.endGame(game, 'draw');
         return null;
       }
@@ -1278,7 +1426,7 @@ export class PhaseTwo {
     if (canSelfDrawWin) {
       const handWithDrawnTile = [...hand, tile];
       const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-      selfDrawWinCombinations = PhaseTwo.deduplicateWinCombinations(allCombinations);
+      selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
       console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
     }
 
@@ -1286,11 +1434,20 @@ export class PhaseTwo {
     hand.push(tile);
 
     // Check for self-gang options AFTER adding tile to hand
-    const selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-    const canSelfGang = selfGangCombinations.length > 0;
+    // Skip self-gang check for players in 聽牌 mode - they can only win or discard
+    const isTing = game.tingStatus.get(playerId);
+    let selfGangCombinations = [];
+    let canSelfGang = false;
 
-    if (canSelfGang) {
-      console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
+    if (!isTing) {
+      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
+      canSelfGang = selfGangCombinations.length > 0;
+
+      if (canSelfGang) {
+        console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
+      }
+    } else {
+      console.log(`[DRAW] 🀄 ${player.name} is in 聽牌 mode - skipping self-gang check`);
     }
 
     return {
@@ -1303,17 +1460,11 @@ export class PhaseTwo {
     };
   }
 
-  /**
-   * Check if a tile is a bonus tile (flower or season)
-   */
-  static isBonusTile(tile) {
-    return tile.type === 'flower' || tile.type === 'season';
-  }
 
   /**
    * Check self-draw win (自摸) and gang options for an existing hand
    * Used for dealer's first turn (天胡) and other scenarios where we need to check without drawing
-   * @param {MahjongGame} game - The game instance
+   * @param {StatusManager} game - The game instance
    * @param {string} playerId - The player's ID
    * @returns {object} - { canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations }
    */
@@ -1343,16 +1494,25 @@ export class PhaseTwo {
 
     // Deduplicate win combinations
     if (selfDrawWinCombinations.length > 0) {
-      selfDrawWinCombinations = PhaseTwo.deduplicateWinCombinations(selfDrawWinCombinations);
+      selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(selfDrawWinCombinations);
       console.log(`[CHECK_OPTIONS] 🎉 Player can 自摸 with ${selfDrawWinCombinations.length} combinations`);
     }
 
     // Check for 槓 options (暗槓 and 碰上槓)
-    const selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-    const canSelfGang = selfGangCombinations.length > 0;
+    // Skip self-gang check for players in 聽牌 mode - they can only win or discard
+    const isTing = game.tingStatus.get(playerId);
+    let selfGangCombinations = [];
+    let canSelfGang = false;
 
-    if (canSelfGang) {
-      console.log(`[CHECK_OPTIONS] 🎴 Player can 槓 with ${selfGangCombinations.length} options`);
+    if (!isTing) {
+      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
+      canSelfGang = selfGangCombinations.length > 0;
+
+      if (canSelfGang) {
+        console.log(`[CHECK_OPTIONS] 🎴 Player can 槓 with ${selfGangCombinations.length} options`);
+      }
+    } else {
+      console.log(`[CHECK_OPTIONS] 🀄 Player is in 聽牌 mode - skipping self-gang check`);
     }
 
     return {

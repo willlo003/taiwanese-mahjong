@@ -171,6 +171,23 @@ function GameScreen({
     return reverseGroups ? groups.reverse() : groups;
   };
 
+  // Helper to get the winning combination for a specific player
+  // winningCombination can be either:
+  // - A single combination object (for single winner)
+  // - A map of playerId -> combination (for multiple winners)
+  const getPlayerCombination = (playerId) => {
+    if (!winningCombination) return null;
+
+    // Check if it's a map (has playerId keys) or a single combination
+    if (winningCombination.sets !== undefined || winningCombination.pairs !== undefined || winningCombination.pair !== undefined) {
+      // It's a single combination object
+      return winningCombination;
+    }
+
+    // It's a map of playerId -> combination
+    return winningCombination[playerId] || null;
+  };
+
   const [selectedTile, setSelectedTile] = useState(null);
   const [tingEnabled, setTingEnabled] = useState(false); // Local toggle for 聽 before discard
 
@@ -327,8 +344,8 @@ function GameScreen({
           {/* Hand tiles - show revealed if game ended, reversed for top player perspective */}
           <div className="player-tiles player-tiles-top">
             {shouldReveal ? (
-              isWinner && winningCombination ? (
-                renderGroupedWinnerHand(topPlayerRevealedHand, winningCombination, true, winningTile, true)
+              isWinner && getPlayerCombination(player.id) ? (
+                renderGroupedWinnerHand(topPlayerRevealedHand, getPlayerCombination(player.id), true, winningTile, true)
               ) : (
                 topPlayerRevealedHand.map((tile, idx) => (
                   <Tile key={idx} tile={tile} className="revealed-tile" rotated={true} />
@@ -452,8 +469,8 @@ function GameScreen({
     const handColumn = (
       <div className={`player-tiles player-tiles-${position}`}>
         {shouldReveal ? (
-          isWinner && winningCombination ? (
-            renderGroupedWinnerHand(orderedRevealedHand, winningCombination, false, winningTile, position === 'right')
+          isWinner && getPlayerCombination(player.id) ? (
+            renderGroupedWinnerHand(orderedRevealedHand, getPlayerCombination(player.id), false, winningTile, position === 'right')
           ) : (
             orderedRevealedHand.map((tile, idx) => (
               <Tile key={idx} tile={tile} className="revealed-tile" />
@@ -500,9 +517,15 @@ function GameScreen({
 
         {/* Center - Game Info and All 4 Discard Areas */}
         <div className="center-area">
-          {/* Determine if we should highlight the loser's last discard (出沖) */}
+          {/* Determine if we should highlight the loser's last discard (出沖, 雙嚮, 三嚮) */}
           {(() => {
-            const loserId = showResultPopup && gameResult?.winType === '出沖'
+            // Highlight winning discard for all win-by-discard scenarios
+            const isWinByDiscard = showResultPopup && (
+              gameResult?.winType === '出沖' ||
+              gameResult?.winType === '雙嚮' ||
+              gameResult?.winType === '三嚮'
+            );
+            const loserId = isWinByDiscard
               ? gameResult?.playerResults?.find(r => r.isLoser)?.playerId
               : null;
 
@@ -668,8 +691,8 @@ function GameScreen({
               )}
               <div className="my-hand">
                 {/* Show grouped hand if I am the winner, otherwise show normal hand */}
-                {isMyWinner && winningCombination ? (
-                  renderGroupedWinnerHand(sortedHand, winningCombination, false, winningTile)
+                {isMyWinner && getPlayerCombination(playerInfo?.playerId) ? (
+                  renderGroupedWinnerHand(sortedHand, getPlayerCombination(playerInfo?.playerId), false, winningTile)
                 ) : (
                   <>
                     {sortedHand.map((tile) => (

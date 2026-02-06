@@ -446,8 +446,13 @@ function App() {
         }
 
         // Store winning combination for grouping display
+        // For single winner: winningCombination
+        // For multiple winners: winnerCombinations (map of playerId -> combination)
         if (data.payload.winningCombination) {
           setWinningCombination(data.payload.winningCombination);
+        } else if (data.payload.winnerCombinations) {
+          // For multiple winners, store the map
+          setWinningCombination(data.payload.winnerCombinations);
         } else {
           setWinningCombination(null);
         }

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { MahjongGame } from './MahjongGame.js';
+import { StatusManager } from './StatusManager.js';
 
 export class GameManager {
   constructor() {
@@ -291,7 +291,7 @@ export class GameManager {
     const playerList = realPlayers.sort((a, b) => a.position - b.position);
     console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position}, id:${p.id})`));
 
-    this.game = new MahjongGame(playerList, this.broadcast.bind(this));
+    this.game = new StatusManager(playerList, this.broadcast.bind(this));
     this.game.start();
   }
 
