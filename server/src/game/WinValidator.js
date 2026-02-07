@@ -28,10 +28,12 @@ export class WinValidator {
       return normalWin;
     }
 
-    // Check Pattern 2: 嚦咕嚦咕 (1 pong/kong + 7 pairs)
-    const liguligu = this.checkLiguLiguWithMelds(nonBonusTiles, numRevealedMelds);
-    if (liguligu.isWin) {
-      return liguligu;
+    if (numRevealedMelds === 0) {
+      // Check Pattern 2: 嚦咕嚦咕 (1 pong/kong + 7 pairs)
+      const liguligu = this.checkLiguLiguWithMelds(nonBonusTiles, numRevealedMelds);
+      if (liguligu.isWin) {
+        return liguligu;
+      }
     }
 
     console.log(`[WIN_VALIDATOR] No valid winning combination found`);

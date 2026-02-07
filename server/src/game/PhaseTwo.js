@@ -57,6 +57,12 @@ export class PhaseTwo {
    * @param {string} playerId - The player's ID
    */
   static autoDiscardOnTimeout(game, playerId) {
+    // Don't auto-discard if game has ended (phase 3)
+    if (game.gameState === 'ended') {
+      console.log(`[TURN_TIMER] Game has ended, skipping auto-discard`);
+      return;
+    }
+
     const player = game.players.find(p => p.id === playerId);
     if (!player) return;
 

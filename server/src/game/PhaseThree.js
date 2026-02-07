@@ -1,3 +1,5 @@
+import { PhaseTwo } from './PhaseTwo.js';
+
 /**
  * Phase Three: End Game (結束遊戲)
  * Handles game ending, scoring, and starting the next game
@@ -15,6 +17,13 @@ export class PhaseThree {
     try {
       console.log(`[END_GAME] Called with reason: ${reason}, winnerId: ${winnerId}, loserId: ${loserId}`);
       game.gameState = 'ended';
+
+      // Clear all timers to prevent auto-discard in phase 3
+      PhaseTwo.clearTurnTimer(game);
+      if (game.claimFreezeTimer) {
+        clearTimeout(game.claimFreezeTimer);
+        game.claimFreezeTimer = null;
+      }
 
       const winner = winnerId ? game.players.find(p => p.id === winnerId) : null;
       const loser = loserId ? game.players.find(p => p.id === loserId) : null;

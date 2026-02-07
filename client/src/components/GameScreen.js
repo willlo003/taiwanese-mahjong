@@ -72,6 +72,12 @@ function GameScreen({
 
   // Turn timer countdown effect
   useEffect(() => {
+    // Stop timer if game is in result phase (phase 3)
+    if (gamePhase === 'result' || showResultPopup) {
+      setTurnTimeLeft(null);
+      return;
+    }
+
     if (!turnTimerEnd || !turnTimerPlayerId) {
       setTurnTimeLeft(null);
       return;
@@ -89,7 +95,7 @@ function GameScreen({
     const interval = setInterval(updateTimer, 100);
 
     return () => clearInterval(interval);
-  }, [turnTimerEnd, turnTimerPlayerId]);
+  }, [turnTimerEnd, turnTimerPlayerId, gamePhase, showResultPopup]);
 
   // Helper to convert wind/round to Chinese
   const windToChinese = (wind) => {
@@ -228,12 +234,23 @@ function GameScreen({
   const [selectedTile, setSelectedTile] = useState(null);
   const [tingEnabled, setTingEnabled] = useState(false); // Local toggle for 聽 before discard
 
-  // Reset tingEnabled when turn changes or when it's no longer our turn
+  // Reset tingEnabled and close popups when turn changes or when it's no longer our turn
   useEffect(() => {
     if (currentPlayer !== playerInfo?.playerId) {
       setTingEnabled(false);
+      // Force close popups when turn changes (e.g., after auto-discard on timeout)
+      setShowSelfDrawWinPopup(false);
+      setShowSelfGangPopup(false);
     }
   }, [currentPlayer, playerInfo?.playerId]);
+
+  // Close popups when claim period starts (e.g., after auto-discard during freeze period)
+  useEffect(() => {
+    if (claimPeriodActive) {
+      setShowSelfDrawWinPopup(false);
+      setShowSelfGangPopup(false);
+    }
+  }, [claimPeriodActive]);
 
   const isMyTurn = currentPlayer === playerInfo?.playerId;
 
@@ -779,7 +796,7 @@ function GameScreen({
         <div className="bottom-actions">
           <div className="player-actions">
             <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>
-              打牌
+              {tingEnabled ? '聽牌' : '打牌'}
             </button>
             <button
               className="action-btn action-btn-gang"
@@ -798,12 +815,12 @@ function GameScreen({
             <button
               className={`action-btn ${isTing ? 'action-btn-active' : ''} ${tingEnabled && !isTing ? 'action-btn-ting-enabled' : ''}`}
               onClick={() => {
-                if (!isTing) {
+                if (!isTing && isMyTurn && selectedTile) {
                   // Toggle 聽 on/off before discard
                   setTingEnabled(!tingEnabled);
                 }
               }}
-              disabled={isTing}
+              disabled={!isMyTurn || !selectedTile || isTing}
             >
               聽{isTing ? ' ✓' : tingEnabled ? ' ON' : ''}
             </button>
@@ -856,6 +873,7 @@ function GameScreen({
           onClose={onClaimClose}
           onPass={onPass}
           onCancelClaim={onCancelClaim}
+          gamePhase={gamePhase}
         />
       )}
 
@@ -1008,11 +1026,16 @@ function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, o
 }
 
 // Claim Popup Component
-function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu, lastDiscardedTile, onClose, onPass, onCancelClaim }) {
+function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu, lastDiscardedTile, onClose, onPass, onCancelClaim, gamePhase }) {
   const [timeLeft, setTimeLeft] = useState(Math.ceil((claimOptions?.timeout || 5000) / 1000));
   const [selectedClaim, setSelectedClaim] = useState(null);
 
   useEffect(() => {
+    // Stop timer if game is in result phase (phase 3)
+    if (gamePhase === 'result') {
+      return;
+    }
+
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -1028,7 +1051,7 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [onClose]);
+  }, [onClose, gamePhase]);
 
   const possibleClaims = claimOptions?.possibleClaims || [];
   const hasAnyClaim = possibleClaims.length > 0 || claimOptions?.canHu;

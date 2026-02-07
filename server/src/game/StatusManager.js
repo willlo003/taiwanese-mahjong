@@ -169,28 +169,25 @@ export class StatusManager {
     const DEBUG_DEALER_TILES = [
       { suit: 'wind', value: 'east' },    // 東 (set 1: pong)
       { suit: 'wind', value: 'east' },    // 東
-      { suit: 'wind', value: 'east' },    // 東
-      // { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
+      // { suit: 'wind', value: 'east' },    // 東
+      { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
+      { suit: 'wind', value: 'south' },   // 南
       // { suit: 'wind', value: 'south' },   // 南
-      // { suit: 'wind', value: 'south' },   // 南
-      // { suit: 'wind', value: 'west' },    // 西 (set 3: pong)
-      // { suit: 'wind', value: 'west' },    // 西
+      { suit: 'wind', value: 'west' },    // 西 (set 3: pong)
+      { suit: 'wind', value: 'west' },    // 西
       // { suit: 'wind', value: 'west' },    // 西
       { suit: 'wind', value: 'north' },   // 北 (set 4: pong)
       { suit: 'wind', value: 'north' },   // 北
-      { suit: 'wind', value: 'north' },   // 北
+      // { suit: 'wind', value: 'north' },   // 北
       { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
+      { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dragon', value: 'red' },   // 中
-      // { suit: 'dragon', value: 'red' },   // 中
-      { suit: 'wind', value: 'east' },   // 東
       // { suit: 'dot', value: 6 },
       // { suit: 'dot', value: 5 },  // 五筒
       { suit: 'dot', value: 7 },
       { suit: 'dot', value: 7 },  // 五筒
-      { suit: 'dot', value: 7 },  // 五筒
       { suit: 'dot', value: 3 },
-      { suit: 'dot', value: 3 },  // 五筒
       { suit: 'dot', value: 3 },  // 五筒
       { suit: 'dot', value: 4 },
       { suit: 'dot', value: 4 },  // 五筒

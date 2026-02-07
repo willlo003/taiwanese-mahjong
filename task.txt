@@ -1,7 +1,7 @@
 1, 雙嚮 x
 2, 暗槓 x
 3, 聽 x
-4，搶槓
+4，搶槓 x
 5, popup no overlap x
 6, reflash
 7, 換牌
