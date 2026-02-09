@@ -22,7 +22,7 @@ export class PhaseTwo {
     const timeoutMs = game.considerTimeout * 1000;
     game.turnTimerPlayerId = playerId;
 
-    console.log(`[TURN_TIMER] Starting ${game.considerTimeout}s timer for ${player.name}`);
+    console.log(`[TURN_TIMER] ⏱️  Starting ${game.considerTimeout}s (${timeoutMs}ms) timer for ${player.name} at ${new Date().toISOString()}`);
 
     // Broadcast timer start to all players
     game.broadcast({
@@ -34,7 +34,7 @@ export class PhaseTwo {
     });
 
     game.turnTimer = setTimeout(() => {
-      console.log(`[TURN_TIMER] ⏰ Timeout for ${player.name}, auto-discarding...`);
+      console.log(`[TURN_TIMER] ⏰ Timeout for ${player.name} at ${new Date().toISOString()}, auto-discarding...`);
       PhaseTwo.autoDiscardOnTimeout(game, playerId);
     }, timeoutMs);
   }
@@ -45,6 +45,8 @@ export class PhaseTwo {
    */
   static clearTurnTimer(game) {
     if (game.turnTimer) {
+      const playerName = game.players.find(p => p.id === game.turnTimerPlayerId)?.name || 'unknown';
+      console.log(`[TURN_TIMER] 🛑 Clearing timer for ${playerName} at ${new Date().toISOString()}`);
       clearTimeout(game.turnTimer);
       game.turnTimer = null;
       game.turnTimerPlayerId = null;
@@ -64,7 +66,10 @@ export class PhaseTwo {
     }
 
     const player = game.players.find(p => p.id === playerId);
-    if (!player) return;
+    if (!player) {
+      console.log(`[TURN_TIMER] ❌ Player not found for ID: ${playerId}`);
+      return;
+    }
 
     // Verify it's still this player's turn
     const playerIndex = game.players.indexOf(player);
@@ -78,6 +83,8 @@ export class PhaseTwo {
       console.log(`[TURN_TIMER] ${player.name} has no tiles to discard`);
       return;
     }
+
+    console.log(`[TURN_TIMER] 🎯 Auto-discarding for ${player.name}, hand size: ${hand.length}, drawnTile: ${game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'none'}`);
 
     // Determine which tile to discard:
     // 1. If player has drawn a tile (drawnTile), discard that
