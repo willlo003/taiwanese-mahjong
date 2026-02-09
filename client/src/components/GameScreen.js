@@ -289,7 +289,8 @@ function GameScreen({
     }
 
     // 聽 players can only select the drawn tile
-    if (mustDiscardDrawnTile && drawnTile && tile.id !== drawnTile.id) {
+    // Check both isTing (player declared 聽) and mustDiscardDrawnTile (server confirmed)
+    if ((isTing || mustDiscardDrawnTile) && drawnTile && tile.id !== drawnTile.id) {
       console.log('[GameScreen] Tile click blocked - 聽 player can only select drawn tile');
       return;
     }
@@ -770,7 +771,7 @@ function GameScreen({
                         tile={tile}
                         selected={selectedTile?.id === tile.id}
                         onClick={() => handleTileClick(tile)}
-                        disabled={!canSelectTiles || (mustDiscardDrawnTile && drawnTile && tile.id !== drawnTile.id)}
+                        disabled={!canSelectTiles || ((isTing || mustDiscardDrawnTile) && drawnTile && tile.id !== drawnTile.id)}
                       />
                     ))}
                     {/* Drawn tile shown separately with a gap */}

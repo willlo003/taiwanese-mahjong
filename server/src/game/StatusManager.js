@@ -242,8 +242,8 @@ export class StatusManager {
       { suit: 'dot', value: 8 },  // 四筒 (set 4: pong)
       { suit: 'dot', value: 8 },  // 四筒
       { suit: 'dot', value: 8 },  // 四筒
-      { suit: 'dot', value: 5 },  // 五筒 (set 5: pong)
-      { suit: 'dot', value: 5 },  // 五筒
+      { suit: 'dot', value: 7 },  // 五筒 (set 5: pong)
+      { suit: 'dot', value: 7 },  // 五筒
       { suit: 'dot', value: 5 },  // 五筒
       { suit: 'dot', value: 6 },  // 六筒
       { suit: 'dot', value: 6 },  // 六筒
