@@ -12,8 +12,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  min-height: 100vh;
-  overflow: hidden;
+  min-height: 100vh; /* Fallback for older browsers */
+  min-height: 100dvh; /* Dynamic viewport height - accounts for mobile browser UI */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 code {
@@ -23,7 +25,9 @@ code {
 
 #root {
   width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh; /* Fallback for older browsers */
+  min-height: 100dvh; /* Dynamic viewport height - accounts for mobile browser UI */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 

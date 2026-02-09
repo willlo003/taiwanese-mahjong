@@ -1,10 +1,13 @@
 .App {
   width: 100vw;
-  height: 100vh;
+  min-height: 100vh; /* Fallback for older browsers */
+  min-height: 100dvh; /* Dynamic viewport height - accounts for mobile browser UI */
   display: flex;
   justify-content: center;
   align-items: center;
   position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .connection-status {
