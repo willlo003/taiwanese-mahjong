@@ -53,6 +53,36 @@ export class StatusManager {
     this.debugMode = debugMode;
   }
 
+  /**
+   * Cleanup method to clear all timers and stop game activity
+   * Called when a player leaves or disconnects
+   */
+  cleanup() {
+    console.log('[CLEANUP] Cleaning up game - clearing all timers');
+
+    // Clear turn timer
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.turnTimer = null;
+      this.turnTimerPlayerId = null;
+      console.log('[CLEANUP] Turn timer cleared');
+    }
+
+    // Clear claim freeze timer
+    if (this.claimFreezeTimer) {
+      clearTimeout(this.claimFreezeTimer);
+      this.claimFreezeTimer = null;
+      console.log('[CLEANUP] Claim freeze timer cleared');
+    }
+
+    // Mark game as ended to prevent any further actions
+    this.gameState = 'ended';
+    this.claimWindowOpen = false;
+    this.pendingClaims.clear();
+
+    console.log('[CLEANUP] Game cleanup complete');
+  }
+
   start() {
     console.log('Initializing Taiwanese Mahjong game...');
     this.gameState = 'playing';
@@ -189,7 +219,7 @@ export class StatusManager {
       { suit: 'dot', value: 7 },
       { suit: 'dot', value: 7 },  // 五筒
       { suit: 'dot', value: 3 },
-      { suit: 'dot', value: 3 },  // 五筒
+      { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 4 },
       { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 4 },  // 五筒

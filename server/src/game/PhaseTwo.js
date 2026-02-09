@@ -562,6 +562,9 @@ export class PhaseTwo {
     const nextPlayerIndex = (discardedByIndex + 1) % 4;
     const nextPlayerId = game.players[nextPlayerIndex].id;
 
+    // Clear turn timer - player has discarded, their turn is over
+    PhaseTwo.clearTurnTimer(game);
+
     // Clear any existing claims and timer
     game.pendingClaims.clear();
     if (game.claimFreezeTimer) {
@@ -727,7 +730,7 @@ export class PhaseTwo {
     });
 
     // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
-    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
+    const freezeTimeout = game.considerTimeout * 1000;
 
     // Notify all players of claim options and freeze period
     game.broadcast({
@@ -1034,6 +1037,9 @@ export class PhaseTwo {
       type: 'turn_changed',
       payload: { currentPlayer: playerId, mustDiscard: true }
     });
+
+    // Start turn timer for the player who claimed pong
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**
@@ -1169,7 +1175,7 @@ export class PhaseTwo {
     });
 
     // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
-    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
+    const freezeTimeout = game.considerTimeout * 1000;
 
     // Notify all players of rob gang period
     game.broadcast({
@@ -1344,6 +1350,9 @@ export class PhaseTwo {
       type: 'turn_changed',
       payload: { currentPlayer: playerId, mustDiscard: true }
     });
+
+    // Start turn timer for the player who claimed gang (after drawing replacement tile)
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**
@@ -1490,7 +1499,7 @@ export class PhaseTwo {
     });
 
     // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
-    const freezeTimeout = Math.max(3, game.considerTimeout - 2) * 1000;
+    const freezeTimeout = game.considerTimeout * 1000;
 
     // Notify all players of rob gang period
     game.broadcast({
@@ -1576,6 +1585,9 @@ export class PhaseTwo {
         payload: { playerId, tilesRemaining: game.tileManager.getRemainingCount(), handSize: hand.length }
       });
     }
+
+    // Start turn timer for the player after self-gang (they need to discard)
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**
@@ -1689,6 +1701,9 @@ export class PhaseTwo {
       type: 'turn_changed',
       payload: { currentPlayer: playerId, mustDiscard: true }
     });
+
+    // Start turn timer for the player who claimed chow
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**

@@ -278,6 +278,8 @@ export class GameManager {
 
       // If game is in progress, end it
       if (this.game) {
+        // Clear all timers before destroying the game
+        this.game.cleanup();
         this.game = null;
 
         // Reset all players' positions and ready status
@@ -306,7 +308,10 @@ export class GameManager {
       console.log(`Player left game: ${player.name}`);
       const leavingPlayerName = player.name;
 
-      // End the game
+      // Clear all timers before destroying the game
+      if (this.game) {
+        this.game.cleanup();
+      }
       this.game = null;
 
       // Reset ALL players' seats and ready status (including the leaving player)

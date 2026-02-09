@@ -87,6 +87,7 @@ function App() {
       case 'game_started':
         console.log('[CLIENT] game_started - dealer:', data.payload.dealer, 'dealerIndex:', data.payload.dealerIndex);
         setGameState('playing');
+        setGamePhase('flower_replacement'); // Reset game phase for new game
         setCurrentPlayer(data.payload.currentPlayer);
         if (data.payload.dealerIndex !== undefined) {
           setDealerIndex(data.payload.dealerIndex);
@@ -121,6 +122,15 @@ function App() {
         // Reset turn timer for new game
         setTurnTimerPlayerId(null);
         setTurnTimerEnd(null);
+        // Reset phase 3 result states for new game
+        setShowResultPopup(false);
+        setGameResult(null);
+        setRevealedHands({});
+        setReadyPlayers([]);
+        setWinningTile(null);
+        setWinningCombination(null);
+        setIsRobGang(false);
+        setRobGangTile(null);
         soundManager.gameStart();
         break;
 
