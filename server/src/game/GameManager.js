@@ -7,6 +7,7 @@ export class GameManager {
     this.game = null;
     this.maxPlayers = 4;
     this.considerTimeout = 5; // Default 5 seconds for turn timer (configurable 3-8)
+    this.debugMode = false; // Debug mode for specific tile dealing
   }
 
   handleMessage(ws, data) {
@@ -33,6 +34,9 @@ export class GameManager {
         break;
       case 'set_consider_time':
         this.handleSetConsiderTime(ws, payload);
+        break;
+      case 'set_debug_mode':
+        this.handleSetDebugMode(ws, payload);
         break;
       default:
         ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
@@ -243,6 +247,29 @@ export class GameManager {
     });
   }
 
+  handleSetDebugMode(ws, payload) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    // Only allow if game hasn't started
+    if (this.game) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Cannot change debug mode during game' }));
+      return;
+    }
+
+    const { enabled } = payload;
+    if (typeof enabled !== 'boolean') {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid debug mode value' }));
+      return;
+    }
+
+    this.debugMode = enabled;
+    console.log(`[LOBBY] Debug mode ${enabled ? 'enabled' : 'disabled'} by ${player.name}`);
+
+    // Broadcast the new setting to all players
+    this.broadcastPlayerList();
+  }
+
   handleDisconnect(ws) {
     const player = this.players.get(ws);
     if (player) {
@@ -321,7 +348,7 @@ export class GameManager {
     const playerList = realPlayers.sort((a, b) => a.position - b.position);
     console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position}, id:${p.id})`));
 
-    this.game = new StatusManager(playerList, this.broadcast.bind(this), this.considerTimeout);
+    this.game = new StatusManager(playerList, this.broadcast.bind(this), this.considerTimeout, this.debugMode);
     this.game.start();
   }
 
@@ -346,7 +373,11 @@ export class GameManager {
 
     this.broadcast({
       type: 'player_list',
-      payload: { players: playerList, considerTimeout: this.considerTimeout }
+      payload: {
+        players: playerList,
+        considerTimeout: this.considerTimeout,
+        debugMode: this.debugMode
+      }
     });
   }
 

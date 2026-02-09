@@ -1,7 +1,7 @@
 import React from 'react';
 import './LobbyScreen.css';
 
-function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame, considerTimeout = 5, onSetConsiderTime }) {
+function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame, considerTimeout = 5, onSetConsiderTime, debugMode = false, onSetDebugMode }) {
   // Find the current player from the players list
   const currentPlayer = players.find(p => p.id === playerInfo?.playerId);
   const hasSeat = currentPlayer?.position !== null && currentPlayer?.position !== undefined;
@@ -104,6 +104,20 @@ function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStart
               <option key={time} value={time}>{time} seconds</option>
             ))}
           </select>
+        </div>
+
+        {/* Debug Mode Setting */}
+        <div className="debug-mode-setting">
+          <label htmlFor="debug-mode">
+            <input
+              type="checkbox"
+              id="debug-mode"
+              checked={debugMode}
+              onChange={(e) => onSetDebugMode && onSetDebugMode(e.target.checked)}
+              className="debug-mode-checkbox"
+            />
+            🐛 Debug Mode (Specific Tiles)
+          </label>
         </div>
 
         {allSeated && isEastPlayer && (

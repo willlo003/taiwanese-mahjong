@@ -9,7 +9,7 @@ import { PhaseThree } from './PhaseThree.js';
  * Handles game initialization, state tracking, and coordinates between phases
  */
 export class StatusManager {
-  constructor(players, broadcastFn, considerTimeout = 5) {
+  constructor(players, broadcastFn, considerTimeout = 5, debugMode = false) {
     this.players = players;
     this.broadcast = broadcastFn;
     this.tileManager = new TileManager();
@@ -48,6 +48,9 @@ export class StatusManager {
     this.considerTimeout = considerTimeout; // Seconds for turn timer (configurable 3-8)
     this.turnTimer = null; // Timer for current player's turn
     this.turnTimerPlayerId = null; // Track which player the timer is for
+
+    // Debug mode for specific tile dealing
+    this.debugMode = debugMode;
   }
 
   start() {
@@ -161,8 +164,6 @@ export class StatusManager {
   }
 
   dealInitialTiles() {
-    // DEBUG BACKDOOR: Set to true to give dealer specific tiles for easy win testing
-    const DEBUG_DEALER_SPECIFIC_TILES = true;
     // DEBUG: Valid 天胡 winning hand (17 tiles)
     // Pattern: 5 sets + 1 pair = 東x3 + 南x3 + 西x3 + 北x3 + 中x3 + 發x2
     // This is a valid winning hand (大四喜 + 字一色)
@@ -195,7 +196,6 @@ export class StatusManager {
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
-    const DEBUG_SOUTH_SPECIFIC_TILES = true;
     // DEBUG: Valid winning hand for 西 player (16 tiles when dealer, 15 when not dealer)
     // Pattern: 5 sets + 1 single = 一筒x3 + 二筒x3 + 三筒x3 + 四筒x3 + 五筒x3 + 六筒x1
     // Waiting for 六筒 to complete the pair
@@ -228,7 +228,7 @@ export class StatusManager {
       const isEastPosition = player.position === 0;
       const isSouthPosition = player.position === 1;
 
-      if (DEBUG_DEALER_SPECIFIC_TILES && isEastPosition) {
+      if (this.debugMode && isEastPosition) {
         // DEBUG: Give 東 position player specific tiles for testing
         const isDealer = index === this.dealerIndex;
         console.log(`[DEBUG] Dealing specific tiles to 東 position player ${player.name} (dealer: ${isDealer})`);
@@ -252,7 +252,7 @@ export class StatusManager {
         }
 
         console.log(`[DEBUG] 東 position player hand (${hand.length} tiles):`, hand.map(t => `${t.suit}-${t.value}`).join(', '));
-      } else if (DEBUG_SOUTH_SPECIFIC_TILES && isSouthPosition) {
+      } else if (this.debugMode && isSouthPosition) {
         // DEBUG: Give 西 position player specific tiles for testing
         const isDealer = index === this.dealerIndex;
         console.log(`[DEBUG] Dealing specific tiles to 南 position player ${player.name} (dealer: ${isDealer})`);

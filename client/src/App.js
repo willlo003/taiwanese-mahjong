@@ -52,6 +52,7 @@ function App() {
   const [considerTimeout, setConsiderTimeout] = useState(5); // Turn timer setting (3-8 seconds)
   const [turnTimerPlayerId, setTurnTimerPlayerId] = useState(null); // Player whose turn timer is active
   const [turnTimerEnd, setTurnTimerEnd] = useState(null); // When the turn timer ends (timestamp)
+  const [debugMode, setDebugMode] = useState(false); // Debug mode for specific tile dealing
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -72,6 +73,10 @@ function App() {
         // Update consider time if provided
         if (data.payload.considerTimeout !== undefined) {
           setConsiderTimeout(data.payload.considerTimeout);
+        }
+        // Update debug mode if provided
+        if (data.payload.debugMode !== undefined) {
+          setDebugMode(data.payload.debugMode);
         }
         break;
 
@@ -657,6 +662,10 @@ function App() {
     sendMessage({ type: 'set_consider_time', payload: { time } });
   };
 
+  const handleSetDebugMode = (enabled) => {
+    sendMessage({ type: 'set_debug_mode', payload: { enabled } });
+  };
+
   const handleResultReady = () => {
     // Send ready message to server
     sendMessage({ type: 'action', payload: { type: 'result_ready' } });
@@ -714,6 +723,8 @@ function App() {
           onStartGame={handleStartGame}
           considerTimeout={considerTimeout}
           onSetConsiderTime={handleSetConsiderTime}
+          debugMode={debugMode}
+          onSetDebugMode={handleSetDebugMode}
         />
       )}
 
