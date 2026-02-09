@@ -32,6 +32,7 @@ export class StatusManager {
     this.gamePhase = 'waiting'; // waiting, flower_replacement, draw_discard
     this.lastDiscardedTile = null;
     this.lastDiscardedBy = null;
+    this.drawnTile = null; // Store the last drawn tile for 自摸 win highlighting
     this.pendingClaims = new Map(); // Store pending claims during freeze period
     this.claimFreezeTimer = null; // Timer for 3-second freeze period
     this.claimWindowOpen = false; // Whether claims are still allowed
@@ -143,9 +144,10 @@ export class StatusManager {
     this.gameState = 'waiting';
     this.gamePhase = 'waiting';
 
-    // Clear last discard
+    // Clear last discard and drawn tile
     this.lastDiscardedTile = null;
     this.lastDiscardedBy = null;
+    this.drawnTile = null;
 
     // Clear claim state
     this.pendingClaims.clear();
@@ -219,7 +221,7 @@ export class StatusManager {
       { suit: 'dot', value: 7 },
       { suit: 'dot', value: 7 },  // 五筒
       { suit: 'dot', value: 3 },
-      { suit: 'dot', value: 4 },  // 五筒
+      { suit: 'dot', value: 3 },  // 五筒
       { suit: 'dot', value: 4 },
       { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 4 },  // 五筒

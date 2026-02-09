@@ -139,6 +139,9 @@ function GameScreen({
   // Helper to render winner's hand grouped by winning combination
   // reverseGroups: true for right player (bottom to top) and top player (right to left)
   const renderGroupedWinnerHand = (handTiles, combination, rotated = false, winTile = null, reverseGroups = false) => {
+    // Debug logging
+    console.log('[RENDER] renderGroupedWinnerHand called with winTile:', winTile);
+
     // Track if we've already highlighted the winning tile (only highlight one)
     let winningTileHighlighted = false;
 
@@ -290,9 +293,17 @@ function GameScreen({
 
     // 聽 players can only select the drawn tile
     // Check both isTing (player declared 聽) and mustDiscardDrawnTile (server confirmed)
-    if ((isTing || mustDiscardDrawnTile) && drawnTile && tile.id !== drawnTile.id) {
-      console.log('[GameScreen] Tile click blocked - 聽 player can only select drawn tile');
-      return;
+    if (isTing || mustDiscardDrawnTile) {
+      // If no drawn tile yet, block all tile selection
+      if (!drawnTile) {
+        console.log('[GameScreen] Tile click blocked - 聽 player has no drawn tile yet');
+        return;
+      }
+      // If there is a drawn tile, only allow selecting that tile
+      if (tile.id !== drawnTile.id) {
+        console.log('[GameScreen] Tile click blocked - 聽 player can only select drawn tile');
+        return;
+      }
     }
 
     if (selectedTile?.id === tile.id) {
@@ -771,7 +782,7 @@ function GameScreen({
                         tile={tile}
                         selected={selectedTile?.id === tile.id}
                         onClick={() => handleTileClick(tile)}
-                        disabled={!canSelectTiles || ((isTing || mustDiscardDrawnTile) && drawnTile && tile.id !== drawnTile.id)}
+                        disabled={!canSelectTiles || ((isTing || mustDiscardDrawnTile) && (!drawnTile || tile.id !== drawnTile.id))}
                       />
                     ))}
                     {/* Drawn tile shown separately with a gap */}

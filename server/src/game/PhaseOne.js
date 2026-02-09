@@ -171,6 +171,11 @@ export class PhaseOne {
 
     console.log(`[START] Dealer ${dealer.name} starts with ${dealerHand.length} tiles`);
 
+    // For 天胡 (heavenly hand), don't set drawnTile since there's no "drawn" tile
+    // The dealer starts with 17 tiles, so no specific tile should be highlighted
+    game.drawnTile = null;
+    console.log(`[START] drawnTile set to null for dealer's first turn (天胡 has no drawn tile)`);
+
     // Use standardized function to check for 自摸 (天胡) and 槓 options
     const options = PhaseTwo.checkSelfDrawOptions(game, dealer.id);
 

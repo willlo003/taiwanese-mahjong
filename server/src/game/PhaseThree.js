@@ -16,6 +16,8 @@ export class PhaseThree {
   static endGame(game, reason, winnerId = null, winResult = null, loserId = null) {
     try {
       console.log(`[END_GAME] Called with reason: ${reason}, winnerId: ${winnerId}, loserId: ${loserId}`);
+      console.log(`[END_GAME] game.drawnTile:`, game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'null');
+      console.log(`[END_GAME] game.lastDiscardedTile:`, game.lastDiscardedTile ? `${game.lastDiscardedTile.suit}-${game.lastDiscardedTile.value}` : 'null');
       game.gameState = 'ended';
 
       // Clear all timers to prevent auto-discard in phase 3
@@ -35,7 +37,8 @@ export class PhaseThree {
       if (reason === 'win_by_discard') {
         winType = '出沖';
       } else if (reason === 'win_self_draw') {
-        winType = '自摸';
+        // Use the pattern from winResult if it's 天胡, otherwise use 自摸
+        winType = winResult?.pattern === '天胡' ? '天胡' : '自摸';
       } else if (reason === 'draw') {
         winType = '和局';
       }
@@ -140,7 +143,7 @@ export class PhaseThree {
           pattern: winResult?.pattern,
           score: winResult?.score,
           winningCombination: winResult?.winningCombination || null,
-          winningTile: reason === 'win_by_discard' ? game.lastDiscardedTile : null,
+          winningTile: reason === 'win_by_discard' ? game.lastDiscardedTile : (reason === 'win_self_draw' ? game.drawnTile : null),
           isRobGang,
           robGangTile: isRobGang ? game.lastDiscardedTile : null,
           currentDealer: dealerPlayer.id,

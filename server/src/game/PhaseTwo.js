@@ -246,6 +246,7 @@ export class PhaseTwo {
 
     // Store the drawn tile for reference (used for 自摸 win)
     game.drawnTile = tile;
+    console.log(`[DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
 
     const hand = game.playerHands.get(playerId);
 
@@ -379,6 +380,7 @@ export class PhaseTwo {
     const playerIndex = game.players.indexOf(player);
 
     console.log(`[HU] handleHu called for player ${player?.name}, playerId: ${playerId}`);
+    console.log(`[HU] game.drawnTile:`, game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'null');
     if (combination) {
       console.log(`[HU] Winning combination:`, JSON.stringify(combination));
     }
@@ -389,8 +391,22 @@ export class PhaseTwo {
 
     if (isSelfDraw) {
       // 自摸 - self-draw win, no loser (all others pay)
-      console.log(`[HU] Player ${player?.name} wins by self-draw (自摸)`);
-      PhaseThree.endGame(game, 'win_self_draw', playerId, { pattern: '自摸', score: 0, winningCombination: combination }, null);
+      // Check if this is 天胡 (heavenly hand) - dealer wins on first turn without drawing from wall
+      // 天胡 is detected by drawnTile being null (no tile was drawn from the wall)
+      const isTianHu = !game.drawnTile;
+
+      console.log(`[HU] game.drawnTile: ${game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'null'}, isTianHu: ${isTianHu}`);
+
+      if (isTianHu) {
+        console.log(`[HU] Player ${player?.name} wins by 天胡 (Heavenly Hand) - no drawn tile to highlight`);
+      } else {
+        console.log(`[HU] Player ${player?.name} wins by self-draw (自摸) with drawn tile: ${game.drawnTile.suit}-${game.drawnTile.value}`);
+      }
+
+      // For 天胡, drawnTile is null (no red border)
+      // For normal 自摸, drawnTile is the tile that was drawn from the wall
+
+      PhaseThree.endGame(game, 'win_self_draw', playerId, { pattern: isTianHu ? '天胡' : '自摸', score: 0, winningCombination: combination }, game.drawnTile);
     } else {
       // 出沖 - win by claiming discarded tile
       console.log(`[HU] Player ${player?.name} wins by discard (出沖)`);
@@ -1553,6 +1569,7 @@ export class PhaseTwo {
 
     const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
     game.drawnTile = tile;
+    console.log(`[SELF-GANG] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
 
     if (bonusTilesDrawn.length > 0) {
       const revealed = game.revealedBonusTiles.get(playerId);
@@ -1791,6 +1808,10 @@ export class PhaseTwo {
 
     // Store the drawn tile for reference
     game.drawnTile = tile;
+    console.log(`[AUTO-DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
+
+    // Check if player is in 聽 status
+    const isTing = game.tingStatus.get(playerId) || false;
 
     if (bonusTilesDrawn.length > 0) {
       const revealed = game.revealedBonusTiles.get(playerId);
@@ -1800,7 +1821,9 @@ export class PhaseTwo {
           bonusTiles: bonusTilesDrawn, finalTile: tile, hand, revealedBonusTiles: revealed,
           tilesRemaining: game.tileManager.getRemainingCount(),
           canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations
+          canSelfGang, selfGangCombinations,
+          isTing,
+          mustDiscardDrawnTile: isTing
         }
       }));
       game.broadcastToOthers(playerId, {
@@ -1817,7 +1840,9 @@ export class PhaseTwo {
         payload: {
           tile, hand, tilesRemaining: game.tileManager.getRemainingCount(),
           canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations
+          canSelfGang, selfGangCombinations,
+          isTing,
+          mustDiscardDrawnTile: isTing
         }
       }));
       game.broadcastToOthers(playerId, {

@@ -296,6 +296,14 @@ function App() {
             [data.payload.playerId]: data.payload.handSize
           }));
         }
+        // If this is the current player's discard (including auto-discard), clear self-draw win state
+        if (data.payload.playerId === playerInfo?.playerId) {
+          setCanSelfDrawWin(false);
+          setSelfDrawWinCombinations([]);
+          setCanSelfGang(false);
+          setSelfGangCombinations([]);
+          setDrawnTile(null);
+        }
         soundManager.tileDiscard();
         break;
 
@@ -468,6 +476,8 @@ function App() {
 
       case 'game_ended': {
         console.log('[CLIENT] Game ended:', data.payload);
+        console.log('[CLIENT] winType:', data.payload.winType);
+        console.log('[CLIENT] winningTile:', data.payload.winningTile);
 
         // Play win sound if there's a winner
         if (data.payload.winner || data.payload.winners) {
@@ -484,10 +494,12 @@ function App() {
           setRevealedHands(data.payload.allPlayerHands);
         }
 
-        // Store winning tile for highlighting (出沖)
+        // Store winning tile for highlighting (出沖 and 自摸)
         if (data.payload.winningTile) {
+          console.log('[CLIENT] Setting winningTile:', data.payload.winningTile);
           setWinningTile(data.payload.winningTile);
         } else {
+          console.log('[CLIENT] No winningTile in payload');
           setWinningTile(null);
         }
 
