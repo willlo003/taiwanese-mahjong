@@ -11,7 +11,6 @@ export class PhaseOne {
    * @param {StatusManager} game - The game instance
    */
   static startFlowerReplacementPhase(game) {
-    console.log('=== Starting flower replacement phase (補花) ===');
     console.log('Dealer index:', game.dealerIndex);
     console.log('Players:', game.players.map(p => p.name));
 
@@ -31,7 +30,6 @@ export class PhaseOne {
 
     // Start the sequential flower replacement process
     console.log('Calling processNextPlayerFlowerReplacement...');
-    PhaseOne.processNextPlayerFlowerReplacement(game);
   }
 
   /**
@@ -209,6 +207,6 @@ export class PhaseOne {
     });
 
     // Start turn timer for dealer's first turn
-    PhaseTwo.startTurnTimer(game, dealer.id);
+    // PhaseTwo.startTurnTimer(game, dealer.id);
   }
 }

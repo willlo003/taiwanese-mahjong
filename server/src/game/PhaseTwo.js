@@ -22,7 +22,7 @@ export class PhaseTwo {
     const timeoutMs = game.considerTimeout * 1000;
     game.turnTimerPlayerId = playerId;
 
-    console.log(`[TURN_TIMER] ⏱️  Starting ${game.considerTimeout}s (${timeoutMs}ms) timer for ${player.name} at ${new Date().toISOString()}`);
+    // console.log(`[TURN_TIMER] ⏱️  Starting ${game.considerTimeout}s (${timeoutMs}ms) timer for ${player.name} at ${new Date().toISOString()}`);
 
     // Broadcast timer start to all players
     game.broadcast({
@@ -34,9 +34,99 @@ export class PhaseTwo {
     });
 
     game.turnTimer = setTimeout(() => {
-      console.log(`[TURN_TIMER] ⏰ Timeout for ${player.name} at ${new Date().toISOString()}, auto-discarding...`);
+      // console.log(`[TURN_TIMER] ⏰ Timeout for ${player.name} at ${new Date().toISOString()}, auto-discarding...`);
       PhaseTwo.autoDiscardOnTimeout(game, playerId);
     }, timeoutMs);
+  }
+
+  static _nextTurn(game, playerId, shouldDraw = false) {
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    const hand = game.playerHands.get(playerId);
+    const melds = game.melds.get(playerId);
+    const isTing = game.tingStatus.get(playerId) || false;
+
+    let selfGangCombinations = [];
+    let canSelfGang = false;
+    let canSelfDrawWin = false;
+    let selfDrawWinCombinations = [];
+    let bonusTilesDrawn = [];
+    let tile;
+
+    if (shouldDraw) {
+      const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId)
+      if (!drawResult) {
+        PhaseThree.endGame(game, 'draw');
+        return;
+      }
+      tile = drawResult.tile;
+      bonusTilesDrawn = drawResult.bonusTilesDrawn
+      game.drawnTile = tile;
+      console.log(`[AUTO-DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
+      // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
+      const numRevealedSets = melds.length;
+      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+      const canSelfDrawWin = winResult.isWin;
+
+      let selfDrawWinCombinations = [];
+      if (canSelfDrawWin) {
+        const handWithDrawnTile = [...hand, tile];
+        const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
+        selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
+        console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+      }
+    }
+
+    if (!isTing) {
+      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
+      canSelfGang = selfGangCombinations.length > 0;
+      if (canSelfGang) {
+        console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
+      }
+    }
+
+    console.log(`[TURN][PLAYER_STATUS][BEFORE] handSize: ${hand.length}, sets: ${melds.length}, isTing: ${isTing}, canSelfGang: ${canSelfGang}, canSelfDrawWin: ${canSelfDrawWin}`);
+
+    if (bonusTilesDrawn.length > 0) {
+      const revealed = game.revealedBonusTiles.get(playerId);
+      player.ws.send(JSON.stringify({
+        type: 'draw_flower_replaced',
+        payload: {
+          bonusTiles: bonusTilesDrawn, finalTile: tile, hand, revealedBonusTiles: revealed,
+          tilesRemaining: game.tileManager.getRemainingCount(),
+          canSelfDrawWin, selfDrawWinCombinations,
+          canSelfGang, selfGangCombinations,
+          isTing,
+          mustDiscardDrawnTile: isTing
+        }
+      }));
+      game.broadcastToOthers(playerId, {
+        type: 'player_draw_flower_replaced',
+        payload: {
+          playerId, playerName: player.name, bonusTiles: bonusTilesDrawn,
+          revealedBonusTiles: revealed, tilesRemaining: game.tileManager.getRemainingCount(),
+          handSize: hand.length
+        }
+      });
+    } else {
+      player.ws.send(JSON.stringify({
+        type: 'tile_drawn',
+        payload: {
+          tile, hand, tilesRemaining: game.tileManager.getRemainingCount(),
+          canSelfDrawWin, selfDrawWinCombinations,
+          canSelfGang, selfGangCombinations,
+          isTing,
+          mustDiscardDrawnTile: isTing
+        }
+      }));
+      game.broadcastToOthers(playerId, {
+        type: 'player_drew',
+        payload: { playerId, tilesRemaining: game.tileManager.getRemainingCount(), handSize: hand.length }
+      });
+    }
+
+    PhaseTwo.startTurnTimer(game, playerId);
   }
 
   /**
@@ -46,7 +136,7 @@ export class PhaseTwo {
   static clearTurnTimer(game) {
     if (game.turnTimer) {
       const playerName = game.players.find(p => p.id === game.turnTimerPlayerId)?.name || 'unknown';
-      console.log(`[TURN_TIMER] 🛑 Clearing timer for ${playerName} at ${new Date().toISOString()}`);
+      // console.log(`[TURN_TIMER] 🛑 Clearing timer for ${playerName} at ${new Date().toISOString()}`);
       clearTimeout(game.turnTimer);
       game.turnTimer = null;
       game.turnTimerPlayerId = null;
@@ -61,30 +151,30 @@ export class PhaseTwo {
   static autoDiscardOnTimeout(game, playerId) {
     // Don't auto-discard if game has ended (phase 3)
     if (game.gameState === 'ended') {
-      console.log(`[TURN_TIMER] Game has ended, skipping auto-discard`);
+      // console.log(`[TURN_TIMER] Game has ended, skipping auto-discard`);
       return;
     }
 
     const player = game.players.find(p => p.id === playerId);
     if (!player) {
-      console.log(`[TURN_TIMER] ❌ Player not found for ID: ${playerId}`);
+      // console.log(`[TURN_TIMER] ❌ Player not found for ID: ${playerId}`);
       return;
     }
 
     // Verify it's still this player's turn
     const playerIndex = game.players.indexOf(player);
     if (playerIndex !== game.currentPlayerIndex) {
-      console.log(`[TURN_TIMER] Not ${player.name}'s turn anymore, skipping auto-discard`);
+      // console.log(`[TURN_TIMER] Not ${player.name}'s turn anymore, skipping auto-discard`);
       return;
     }
 
     const hand = game.playerHands.get(playerId);
     if (!hand || hand.length === 0) {
-      console.log(`[TURN_TIMER] ${player.name} has no tiles to discard`);
+      // console.log(`[TURN_TIMER] ${player.name} has no tiles to discard`);
       return;
     }
 
-    console.log(`[TURN_TIMER] 🎯 Auto-discarding for ${player.name}, hand size: ${hand.length}, drawnTile: ${game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'none'}`);
+    // console.log(`[TURN_TIMER] 🎯 Auto-discarding for ${player.name}, hand size: ${hand.length}, drawnTile: ${game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'none'}`);
 
     // Determine which tile to discard:
     // 1. If player has drawn a tile (drawnTile), discard that
@@ -93,11 +183,11 @@ export class PhaseTwo {
 
     if (game.drawnTile && hand.some(t => t.id === game.drawnTile.id)) {
       tileToDiscard = game.drawnTile;
-      console.log(`[TURN_TIMER] Auto-discarding drawn tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
+      // console.log(`[TURN_TIMER] Auto-discarding drawn tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
     } else {
       // Discard rightmost tile (last in hand array)
       tileToDiscard = hand[hand.length - 1];
-      console.log(`[TURN_TIMER] Auto-discarding rightmost tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
+      // console.log(`[TURN_TIMER] Auto-discarding rightmost tile: ${tileToDiscard.suit}-${tileToDiscard.value}`);
     }
 
     // Perform the discard
@@ -416,9 +506,9 @@ export class PhaseTwo {
   static checkSelfGangOptions(game, hand, melds) {
     const gangOptions = [];
 
-    console.log(`[CHECK_GANG] Checking gang options - Hand: ${hand.length} tiles, Melds: ${melds.length}`);
-    console.log(`[CHECK_GANG] Melds:`, melds.map(m => `${m.type}: ${m.tiles[0].suit}-${m.tiles[0].value} x${m.tiles.length}`));
-    console.log(`[CHECK_GANG] Hand tiles:`, hand.map(t => `${t.suit}-${t.value}`));
+    // console.log(`[CHECK_GANG] Checking gang options - Hand: ${hand.length} tiles, Melds: ${melds.length}`);
+    // console.log(`[CHECK_GANG] Melds:`, melds.map(m => `${m.type}: ${m.tiles[0].suit}-${m.tiles[0].value} x${m.tiles.length}`));
+    // console.log(`[CHECK_GANG] Hand tiles:`, hand.map(t => `${t.suit}-${t.value}`));
 
     // Check for concealed gang (暗槓): 4 same tiles in hand
     const tileCounts = new Map();
@@ -430,7 +520,7 @@ export class PhaseTwo {
       tileCounts.get(key).push(tile);
     });
 
-    console.log(`[CHECK_GANG] Tile counts:`, Array.from(tileCounts.entries()).map(([key, tiles]) => `${key}: ${tiles.length}`));
+    // console.log(`[CHECK_GANG] Tile counts:`, Array.from(tileCounts.entries()).map(([key, tiles]) => `${key}: ${tiles.length}`));
 
     tileCounts.forEach((tiles, key) => {
       if (tiles.length === 4) {
@@ -440,13 +530,13 @@ export class PhaseTwo {
           suit: tiles[0].suit,
           value: tiles[0].value
         });
-        console.log(`[CHECK_GANG] ✅ Found concealed gang: ${tiles[0].suit}-${tiles[0].value}`);
+        // console.log(`[CHECK_GANG] ✅ Found concealed gang: ${tiles[0].suit}-${tiles[0].value}`);
       }
     });
 
     // Check for add to pong (碰上槓): any tile in hand that matches existing pong
     melds.forEach((meld, meldIdx) => {
-      console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
+      // console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
       if (meld.type === 'pong') {
         const matchingTile = hand.find(t =>
           t.suit === meld.tiles[0].suit && t.value === meld.tiles[0].value
@@ -459,7 +549,7 @@ export class PhaseTwo {
             suit: matchingTile.suit,
             value: matchingTile.value
           });
-          console.log(`[CHECK_GANG] ✅ Found add-to-pong: ${matchingTile.suit}-${matchingTile.value}`);
+          // console.log(`[CHECK_GANG] ✅ Found add-to-pong: ${matchingTile.suit}-${matchingTile.value}`);
         }
       }
     });
@@ -637,7 +727,9 @@ export class PhaseTwo {
     if (!anyoneCanClaim) {
       console.log('[CLAIM] No one can claim, skipping freeze period');
       game.claimWindowOpen = false;
-      PhaseTwo.nextTurn(game);
+      game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+      const nextPlayer = game.players[game.currentPlayerIndex];
+      PhaseTwo.prepareNextTurn(game, nextPlayer, true);
       return;
     }
 
@@ -821,7 +913,9 @@ export class PhaseTwo {
         type: 'claim_period_end',
         payload: { claimedBy: null, claimType: null }
       });
-      PhaseTwo.nextTurn(game);
+      game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+      const nextPlayer = game.players[game.currentPlayerIndex];
+      PhaseTwo.prepareNextTurn(game, nextPlayer, true);
       return;
     }
 
@@ -902,7 +996,9 @@ export class PhaseTwo {
 
     if (matchingTiles.length < 2) {
       console.log(`[CLAIM] ❌ Invalid pong`);
-      PhaseTwo.nextTurn(game);
+      game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+      const nextPlayer = game.players[game.currentPlayerIndex];
+      PhaseTwo.prepareNextTurn(game, nextPlayer, true);
       return;
     }
 
@@ -958,7 +1054,7 @@ export class PhaseTwo {
     });
 
     // Start turn timer for the player who claimed pong
-    PhaseTwo.startTurnTimer(game, playerId);
+    PhaseTwo.prepareNextTurn(game, player, false);
   }
 
   /**
@@ -977,7 +1073,9 @@ export class PhaseTwo {
 
     if (matchingTiles.length < 3) {
       console.log(`[CLAIM] ❌ Invalid gang`);
-      PhaseTwo.nextTurn(game);
+      game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+      const nextPlayer = game.players[game.currentPlayerIndex];
+      PhaseTwo.prepareNextTurn(game, nextPlayer, true);
       return;
     }
 
@@ -1221,7 +1319,7 @@ export class PhaseTwo {
 
     // Draw replacement tile
     console.log(`[GANG_CLAIM] Drawing replacement tile (補牌)...`);
-    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId, 'GANG_CLAIM');
+    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId);
 
     if (!drawResult) {
       return;
@@ -1271,7 +1369,9 @@ export class PhaseTwo {
     });
 
     // Start turn timer for the player who claimed gang (after drawing replacement tile)
-    PhaseTwo.startTurnTimer(game, playerId);
+    // PhaseTwo.startTurnTimer(game, playerId);
+    // TODO: 補牌should implement here
+    PhaseTwo.prepareNextTurn(game, player, false);
   }
 
   /**
@@ -1464,7 +1564,7 @@ export class PhaseTwo {
 
     // Draw replacement tile
     console.log(`[SELF-GANG] Drawing replacement tile (補牌)...`);
-    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId, 'SELF-GANG');
+    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId);
 
     if (!drawResult) {
       return;
@@ -1507,7 +1607,8 @@ export class PhaseTwo {
     }
 
     // Start turn timer for the player after self-gang (they need to discard)
-    PhaseTwo.startTurnTimer(game, playerId);
+    // PhaseTwo.startTurnTimer(game, playerId);
+    PhaseTwo.prepareNextTurn(game, player, true);
   }
 
   /**
@@ -1536,7 +1637,9 @@ export class PhaseTwo {
 
       if (!['bamboo', 'character', 'dot'].includes(tileSuit)) {
         console.log('[CLAIM] Invalid chow - cannot chow honor tiles');
-        PhaseTwo.nextTurn(game);
+        game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+        const nextPlayer = game.players[game.currentPlayerIndex];
+        PhaseTwo.prepareNextTurn(game, nextPlayer, true);
         return;
       }
 
@@ -1560,7 +1663,9 @@ export class PhaseTwo {
 
       if (!handTiles) {
         console.log('[CLAIM] Invalid chow - no matching tiles found');
-        PhaseTwo.nextTurn(game);
+        game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+        const nextPlayer = game.players[game.currentPlayerIndex];
+        PhaseTwo.prepareNextTurn(game, nextPlayer, true);
         return;
       }
     }
@@ -1574,7 +1679,9 @@ export class PhaseTwo {
 
     if (!isValidSequence) {
       console.log('[CLAIM] Invalid chow - tiles do not form a sequence');
-      PhaseTwo.nextTurn(game);
+      game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+      const nextPlayer = game.players[game.currentPlayerIndex];
+      PhaseTwo.prepareNextTurn(game, nextPlayer, true);
       return;
     }
 
@@ -1623,7 +1730,8 @@ export class PhaseTwo {
     });
 
     // Start turn timer for the player who claimed chow
-    PhaseTwo.startTurnTimer(game, playerId);
+    // PhaseTwo.startTurnTimer(game, playerId);
+    PhaseTwo.prepareNextTurn(game, player, false);
   }
 
   /**
@@ -1653,126 +1761,128 @@ export class PhaseTwo {
   /**
    * Move to next turn
    */
-  static nextTurn(game) {
-    game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
-    const nextPlayer = game.players[game.currentPlayerIndex];
+  static prepareNextTurn(game, nextPlayer, shouldDraw) {
+    // game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
+    // const nextPlayer = game.players[game.currentPlayerIndex];
+    console.log(`=======================================================================================`);
 
-    console.log(`[TURN] nextTurn called, next player: ${nextPlayer.name}`);
+    console.log(`[TURN] player: ${nextPlayer.name}'s turn, shouldDraw: ${shouldDraw}`);
 
-    game.playerHasDrawn.set(nextPlayer.id, false);
+    if (shouldDraw) {
+      game.playerHasDrawn.set(nextPlayer.id, false);
+    }
 
     game.broadcast({
       type: 'turn_changed',
       payload: { currentPlayer: nextPlayer.id }
     });
 
-    console.log(`[TURN] Calling autoDrawForPlayer for ${nextPlayer.name}`);
-    PhaseTwo.autoDrawForPlayer(game, nextPlayer.id);
+    PhaseTwo._nextTurn(game, nextPlayer.id, shouldDraw);
   }
 
   /**
    * Auto-draw a tile for a player (used when turn changes)
    */
-  static autoDrawForPlayer(game, playerId) {
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) {
-      console.log(`[DRAW] autoDrawForPlayer: player not found for ${playerId}`);
-      return;
-    }
-
-    const hand = game.playerHands.get(playerId);
-    const melds = game.melds.get(playerId) || [];
-
-    const gangMelds = melds.filter(m => m.type === 'gang').length;
-    const otherMelds = melds.length - gangMelds;
-    const expectedHandSize = 16 - (otherMelds * 3) - (gangMelds * 3);
-
-    const isReadyToDraw = hand.length === expectedHandSize && (hand.length - 1) % 3 === 0;
-
-    if (!isReadyToDraw) {
-      console.log(`[DRAW] autoDrawForPlayer: player ${player.name} has ${hand.length} tiles (expected ${expectedHandSize}), skipping draw`);
-      return;
-    }
-
-    console.log(`[DRAW] autoDrawForPlayer: drawing tile for ${player.name}`);
-
-    game.lastDiscardedTile = null;
-    game.lastDiscardedBy = null;
-
-    // Use standardized draw function that checks both win and gang
-    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId, 'AUTO_DRAW');
-
-    if (!drawResult) {
-      // Game ended in draw (no more tiles)
-      return;
-    }
-
-    const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
-
-    // Store the drawn tile for reference
-    game.drawnTile = tile;
-    console.log(`[AUTO-DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
-
-    // Check if player is in 聽 status
-    const isTing = game.tingStatus.get(playerId) || false;
-
-    if (bonusTilesDrawn.length > 0) {
-      const revealed = game.revealedBonusTiles.get(playerId);
-      player.ws.send(JSON.stringify({
-        type: 'draw_flower_replaced',
-        payload: {
-          bonusTiles: bonusTilesDrawn, finalTile: tile, hand, revealedBonusTiles: revealed,
-          tilesRemaining: game.tileManager.getRemainingCount(),
-          canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations,
-          isTing,
-          mustDiscardDrawnTile: isTing
-        }
-      }));
-      game.broadcastToOthers(playerId, {
-        type: 'player_draw_flower_replaced',
-        payload: {
-          playerId, playerName: player.name, bonusTiles: bonusTilesDrawn,
-          revealedBonusTiles: revealed, tilesRemaining: game.tileManager.getRemainingCount(),
-          handSize: hand.length
-        }
-      });
-    } else {
-      player.ws.send(JSON.stringify({
-        type: 'tile_drawn',
-        payload: {
-          tile, hand, tilesRemaining: game.tileManager.getRemainingCount(),
-          canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations,
-          isTing,
-          mustDiscardDrawnTile: isTing
-        }
-      }));
-      game.broadcastToOthers(playerId, {
-        type: 'player_drew',
-        payload: { playerId, tilesRemaining: game.tileManager.getRemainingCount(), handSize: hand.length }
-      });
-    }
-
-    // Start turn timer after player draws
-    PhaseTwo.startTurnTimer(game, playerId);
-  }
+  // static autoDrawForPlayer(game, playerId) {
+  //   const player = game.players.find(p => p.id === playerId);
+  //   if (!player) {
+  //     console.log(`[DRAW] autoDrawForPlayer: player not found for ${playerId}`);
+  //     return;
+  //   }
+  //
+  //   const hand = game.playerHands.get(playerId);
+  //   const melds = game.melds.get(playerId) || [];
+  //
+  //   const gangMelds = melds.filter(m => m.type === 'gang').length;
+  //   const otherMelds = melds.length - gangMelds;
+  //   const expectedHandSize = 16 - (otherMelds * 3) - (gangMelds * 3);
+  //
+  //   const isReadyToDraw = hand.length === expectedHandSize && (hand.length - 1) % 3 === 0;
+  //
+  //   if (!isReadyToDraw) {
+  //     console.log(`[DRAW] autoDrawForPlayer: player ${player.name} has ${hand.length} tiles (expected ${expectedHandSize}), skipping draw`);
+  //     return;
+  //   }
+  //
+  //   console.log(`[DRAW] autoDrawForPlayer: drawing tile for ${player.name}`);
+  //
+  //   game.lastDiscardedTile = null;
+  //   game.lastDiscardedBy = null;
+  //
+  //   // Use standardized draw function that checks both win and gang
+  //   const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId);
+  //
+  //   if (!drawResult) {
+  //     // Game ended in draw (no more tiles)
+  //     return;
+  //   }
+  //
+  //   const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
+  //
+  //   // Store the drawn tile for reference
+  //   game.drawnTile = tile;
+  //   console.log(`[AUTO-DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
+  //
+  //   // Check if player is in 聽 status
+  //   const isTing = game.tingStatus.get(playerId) || false;
+  //
+  //   if (bonusTilesDrawn.length > 0) {
+  //     const revealed = game.revealedBonusTiles.get(playerId);
+  //     player.ws.send(JSON.stringify({
+  //       type: 'draw_flower_replaced',
+  //       payload: {
+  //         bonusTiles: bonusTilesDrawn, finalTile: tile, hand, revealedBonusTiles: revealed,
+  //         tilesRemaining: game.tileManager.getRemainingCount(),
+  //         canSelfDrawWin, selfDrawWinCombinations,
+  //         canSelfGang, selfGangCombinations,
+  //         isTing,
+  //         mustDiscardDrawnTile: isTing
+  //       }
+  //     }));
+  //     game.broadcastToOthers(playerId, {
+  //       type: 'player_draw_flower_replaced',
+  //       payload: {
+  //         playerId, playerName: player.name, bonusTiles: bonusTilesDrawn,
+  //         revealedBonusTiles: revealed, tilesRemaining: game.tileManager.getRemainingCount(),
+  //         handSize: hand.length
+  //       }
+  //     });
+  //   } else {
+  //     player.ws.send(JSON.stringify({
+  //       type: 'tile_drawn',
+  //       payload: {
+  //         tile, hand, tilesRemaining: game.tileManager.getRemainingCount(),
+  //         canSelfDrawWin, selfDrawWinCombinations,
+  //         canSelfGang, selfGangCombinations,
+  //         isTing,
+  //         mustDiscardDrawnTile: isTing
+  //       }
+  //     }));
+  //     game.broadcastToOthers(playerId, {
+  //       type: 'player_drew',
+  //       payload: { playerId, tilesRemaining: game.tileManager.getRemainingCount(), handSize: hand.length }
+  //     });
+  //   }
+  //
+  //   // Start turn timer after player draws
+  //   // PhaseTwo.startTurnTimer(game, playerId);
+  //   PhaseTwo.prepareNextTurn(game, player, true);
+  // }
 
   /**
    * Standardized draw function that handles bonus tiles, win validation, and gang validation
    */
-  static drawTileWithBonusCheck(game, playerId, context = 'DRAW') {
+  static drawTileWithBonusCheck(game, playerId) {
     const player = game.players.find(p => p.id === playerId);
     const hand = game.playerHands.get(playerId);
-    const melds = game.melds.get(playerId);
+    // const melds = game.melds.get(playerId);
 
-    console.log(`[DRAW] 🎲 drawTileWithBonusCheck called for player ${playerId}, context: ${context}`);
+    console.log(`[DRAW] 🎲 drawTileWithBonusCheck called for player ${playerId}`);
 
     let tile = game.tileManager.drawTile();
     const bonusTilesDrawn = [];
 
     if (!tile) {
-      PhaseThree.endGame(game, 'draw');
       return null;
     }
 
@@ -1784,53 +1894,53 @@ export class PhaseTwo {
       tile = game.tileManager.drawTile();
 
       if (!tile) {
-        PhaseThree.endGame(game, 'draw');
+        // PhaseThree.endGame(game, 'draw');
         return null;
       }
     }
 
     console.log(`[DRAW] ✅ ${player.name} drew: ${tile.suit}-${tile.value}`);
 
-    // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
-    const numRevealedSets = melds.length;
-    const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
-    const canSelfDrawWin = winResult.isWin;
-
-    let selfDrawWinCombinations = [];
-    if (canSelfDrawWin) {
-      const handWithDrawnTile = [...hand, tile];
-      const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-      selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
-      console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
-    }
+    // // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
+    // const numRevealedSets = melds.length;
+    // const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+    // const canSelfDrawWin = winResult.isWin;
+    //
+    // let selfDrawWinCombinations = [];
+    // if (canSelfDrawWin) {
+    //   const handWithDrawnTile = [...hand, tile];
+    //   const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
+    //   selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
+    //   console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+    // }
 
     // Add tile to hand
     hand.push(tile);
 
     // Check for self-gang options AFTER adding tile to hand
     // Skip self-gang check for players in 聽牌 mode - they can only win or discard
-    const isTing = game.tingStatus.get(playerId);
-    let selfGangCombinations = [];
-    let canSelfGang = false;
-
-    if (!isTing) {
-      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-      canSelfGang = selfGangCombinations.length > 0;
-
-      if (canSelfGang) {
-        console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
-      }
-    } else {
-      console.log(`[DRAW] 🀄 ${player.name} is in 聽牌 mode - skipping self-gang check`);
-    }
+    // const isTing = game.tingStatus.get(playerId);
+    // let selfGangCombinations = [];
+    // let canSelfGang = false;
+    //
+    // if (!isTing) {
+    //   selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
+    //   canSelfGang = selfGangCombinations.length > 0;
+    //
+    //   if (canSelfGang) {
+    //     console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
+    //   }
+    // } else {
+    //   console.log(`[DRAW] 🀄 ${player.name} is in 聽牌 mode - skipping self-gang check`);
+    // }
 
     return {
       tile,
       bonusTilesDrawn,
-      canSelfDrawWin,
-      selfDrawWinCombinations,
-      canSelfGang,
-      selfGangCombinations
+      // canSelfDrawWin,
+      // selfDrawWinCombinations,
+      // canSelfGang,
+      // selfGangCombinations
     };
   }
 

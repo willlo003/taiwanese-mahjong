@@ -121,12 +121,16 @@ export class StatusManager {
     this.sendHandsToPlayers();
 
     // Start flower replacement phase (補花)
-    this.startFlowerReplacementPhase();
+    // this.startPhaseOne();
+    console.log('=============== Starting flower replacement phase (補花) ===============');
+    PhaseOne.startFlowerReplacementPhase(this);
+    PhaseOne.processNextPlayerFlowerReplacement(this);
+    console.log('=============== Starting discard phase ===============');
+    PhaseTwo.prepareNextTurn(this, this.players[this.dealerIndex], false);
   }
 
   // Reset game state for next game
   resetForNextGame() {
-    console.log('====================');
     console.log('[RESET] Resetting game state for next game...');
     console.log(`[RESET] Next dealer: ${this.players[this.dealerIndex].name} (position ${this.dealerIndex})`);
     console.log(`[RESET] Next round: ${this.currentRound}, Next wind: ${this.currentWind}`);
@@ -326,7 +330,7 @@ export class StatusManager {
 
 
   // Start the flower replacement phase (補花) - delegates to PhaseOne
-  startFlowerReplacementPhase() {
+  startPhaseOne() {
     PhaseOne.startFlowerReplacementPhase(this);
   }
 
