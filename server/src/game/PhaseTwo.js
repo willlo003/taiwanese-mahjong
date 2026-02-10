@@ -1,6 +1,7 @@
 import { WinValidator } from './WinValidator.js';
 import { PhaseThree } from './PhaseThree.js';
 import GameUtils from './GameUtils.js';
+import {GangValidator} from "./GangValidator.js";
 
 /**
  * Phase Two: Draw/Discard (打牌)
@@ -47,8 +48,8 @@ export class PhaseTwo {
     const melds = game.melds.get(playerId);
     const isTing = game.tingStatus.get(playerId) || false;
 
-    let selfGangCombinations = [];
     let canSelfGang = false;
+    let gangOptions = [];
     let canSelfDrawWin = false;
     let selfDrawWinCombinations = [];
     let bonusTilesDrawn = [];
@@ -69,7 +70,6 @@ export class PhaseTwo {
       const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
       const canSelfDrawWin = winResult.isWin;
 
-      let selfDrawWinCombinations = [];
       if (canSelfDrawWin) {
         const handWithDrawnTile = [...hand, tile];
         const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
@@ -79,11 +79,7 @@ export class PhaseTwo {
     }
 
     if (!isTing) {
-      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-      canSelfGang = selfGangCombinations.length > 0;
-      if (canSelfGang) {
-        console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
-      }
+      ({gangOptions, canGang: canSelfGang} = GangValidator.checkSelfGangOptions(game, hand, melds));
     }
 
     console.log(`[TURN][PLAYER_STATUS][BEFORE] handSize: ${hand.length}, sets: ${melds.length}, isTing: ${isTing}, canSelfGang: ${canSelfGang}, canSelfDrawWin: ${canSelfDrawWin}`);
@@ -96,7 +92,7 @@ export class PhaseTwo {
           bonusTiles: bonusTilesDrawn, finalTile: tile, hand, revealedBonusTiles: revealed,
           tilesRemaining: game.tileManager.getRemainingCount(),
           canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations,
+          canSelfGang, selfGangCombinations: gangOptions,
           isTing,
           mustDiscardDrawnTile: isTing
         }
@@ -115,7 +111,7 @@ export class PhaseTwo {
         payload: {
           tile, hand, tilesRemaining: game.tileManager.getRemainingCount(),
           canSelfDrawWin, selfDrawWinCombinations,
-          canSelfGang, selfGangCombinations,
+          canSelfGang, selfGangCombinations: gangOptions,
           isTing,
           mustDiscardDrawnTile: isTing
         }
@@ -503,60 +499,6 @@ export class PhaseTwo {
    * @param {array} melds - The player's melds
    * @returns {array} - Array of gang options
    */
-  static checkSelfGangOptions(game, hand, melds) {
-    const gangOptions = [];
-
-    // console.log(`[CHECK_GANG] Checking gang options - Hand: ${hand.length} tiles, Melds: ${melds.length}`);
-    // console.log(`[CHECK_GANG] Melds:`, melds.map(m => `${m.type}: ${m.tiles[0].suit}-${m.tiles[0].value} x${m.tiles.length}`));
-    // console.log(`[CHECK_GANG] Hand tiles:`, hand.map(t => `${t.suit}-${t.value}`));
-
-    // Check for concealed gang (暗槓): 4 same tiles in hand
-    const tileCounts = new Map();
-    hand.forEach(tile => {
-      const key = `${tile.suit}-${tile.value}`;
-      if (!tileCounts.has(key)) {
-        tileCounts.set(key, []);
-      }
-      tileCounts.get(key).push(tile);
-    });
-
-    // console.log(`[CHECK_GANG] Tile counts:`, Array.from(tileCounts.entries()).map(([key, tiles]) => `${key}: ${tiles.length}`));
-
-    tileCounts.forEach((tiles, key) => {
-      if (tiles.length === 4) {
-        gangOptions.push({
-          type: 'concealed_gang',
-          tiles: tiles,
-          suit: tiles[0].suit,
-          value: tiles[0].value
-        });
-        // console.log(`[CHECK_GANG] ✅ Found concealed gang: ${tiles[0].suit}-${tiles[0].value}`);
-      }
-    });
-
-    // Check for add to pong (碰上槓): any tile in hand that matches existing pong
-    melds.forEach((meld, meldIdx) => {
-      // console.log(`[CHECK_GANG] Checking meld ${meldIdx}: type=${meld.type}, tiles=${meld.tiles.length}`);
-      if (meld.type === 'pong') {
-        const matchingTile = hand.find(t =>
-          t.suit === meld.tiles[0].suit && t.value === meld.tiles[0].value
-        );
-        if (matchingTile) {
-          gangOptions.push({
-            type: 'add_to_pong',
-            tiles: [...meld.tiles, matchingTile],
-            meldIndex: meldIdx,
-            suit: matchingTile.suit,
-            value: matchingTile.value
-          });
-          // console.log(`[CHECK_GANG] ✅ Found add-to-pong: ${matchingTile.suit}-${matchingTile.value}`);
-        }
-      }
-    });
-
-    console.log(`[CHECK_GANG] Total gang options found: ${gangOptions.length}`);
-    return gangOptions;
-  }
 
   // deduplicateClaims and deduplicateWinCombinations moved to GameUtils.js
 
@@ -602,10 +544,9 @@ export class PhaseTwo {
 
       // Check for 食 (Hu/Win)
       const numRevealedSets = melds.length;
-      console.log(`[CLAIM] Checking win for player ${player.name}:`);
       const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
       const canHu = winResult.isWin;
-      console.log(`  Can Hu: ${canHu}, Win result:`, winResult);
+      console.log(`[CLAIM] Checking win for player ${player.name} - Win result:`, winResult);
 
       let winCombinations = [];
       if (canHu) {
@@ -725,7 +666,6 @@ export class PhaseTwo {
     console.log(`[CLAIM] Claim options found: ${claimOptions.length}`);
 
     if (!anyoneCanClaim) {
-      console.log('[CLAIM] No one can claim, skipping freeze period');
       game.claimWindowOpen = false;
       game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
       const nextPlayer = game.players[game.currentPlayerIndex];
@@ -774,9 +714,7 @@ export class PhaseTwo {
     });
 
     // Start freeze timer
-    console.log(`[CLAIM] Starting freeze timer for ${freezeTimeout}ms`);
     game.claimFreezeTimer = setTimeout(() => {
-      console.log(`[CLAIM] Freeze timer expired, calling resolveClaims`);
       PhaseTwo.resolveClaims(game);
     }, freezeTimeout);
   }
@@ -786,7 +724,6 @@ export class PhaseTwo {
    */
   static registerClaim(game, playerId, claimType, tiles = null, combination = null) {
     if (!game.claimWindowOpen) {
-      console.log(`[CLAIM] Claim window closed, ignoring ${claimType} from ${playerId}`);
       return false;
     }
 
@@ -893,10 +830,8 @@ export class PhaseTwo {
    * Resolve claims after freeze period
    */
   static resolveClaims(game) {
-    console.log(`[CLAIM] resolveClaims called, claimWindowOpen=${game.claimWindowOpen}`);
 
     if (!game.claimWindowOpen) {
-      console.log('[CLAIM] resolveClaims called but claim window already closed, ignoring');
       return;
     }
 
@@ -928,7 +863,6 @@ export class PhaseTwo {
     });
 
     if (huClaims.length > 1) {
-      console.log(`[CLAIM] Multiple Hu claims detected: ${huClaims.length} winners`);
       const validWinners = huClaims.map(claim => ({
         playerId: claim.playerId,
         winResult: { pattern: '出沖', score: 0 },
@@ -955,7 +889,6 @@ export class PhaseTwo {
       }
     });
 
-    console.log(`[CLAIM] Resolving claim: ${highestClaim.type} from ${highestClaim.playerId}`);
     game.pendingClaims.clear();
 
     game.broadcast({
@@ -987,8 +920,6 @@ export class PhaseTwo {
     const player = game.players.find(p => p.id === playerId);
     const tile = game.lastDiscardedTile;
     const hand = game.playerHands.get(playerId);
-
-    console.log(`[CLAIM] ${player.name} is claiming 碰 (pong)...`);
 
     const matchingTiles = hand.filter(t =>
       t.suit === tile.suit && t.value === tile.value
@@ -1034,8 +965,7 @@ export class PhaseTwo {
       }
     });
 
-    const selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-    const canSelfGang = selfGangCombinations.length > 0;
+    const {gangOptions, canGang: canSelfGang} = GangValidator.checkSelfGangOptions(game, hand, melds);
 
     player.ws.send(JSON.stringify({
       type: 'hand_update',
@@ -1043,7 +973,7 @@ export class PhaseTwo {
         hand: hand,
         tilesRemaining: game.tileManager.getRemainingCount(),
         canSelfGang: canSelfGang,
-        selfGangCombinations: selfGangCombinations
+        selfGangCombinations: gangOptions
       }
     }));
 
@@ -1065,8 +995,6 @@ export class PhaseTwo {
     const tile = game.lastDiscardedTile;
     const hand = game.playerHands.get(playerId);
 
-    console.log(`[CLAIM] ${player.name} is claiming 槓 (gang)...`);
-
     const matchingTiles = hand.filter(t =>
       t.suit === tile.suit && t.value === tile.value
     ).slice(0, 3);
@@ -1079,7 +1007,7 @@ export class PhaseTwo {
       return;
     }
 
-    console.log(`[CLAIM] ✅ ${player.name} claimed 槓: ${tile.suit}-${tile.value} x4`);
+    console.log(`[CLAIM] ✅ ${player.name} claimed 槓: ${tile.suit}-${tile.value} x4}`);
 
     matchingTiles.forEach(t => {
       const idx = hand.findIndex(ht => ht.id === t.id);
@@ -1117,20 +1045,28 @@ export class PhaseTwo {
       }
     }));
 
+    // Draw replacement tile
+    // game.lastDiscardedTile = null;
+    // game.lastDiscardedBy = null;
+    console.log(`[GANG_CLAIM] Drawing replacement tile (補槓)...`);
+    PhaseTwo.prepareNextTurn(game, player, true);
+
     // Check if player can win immediately after claiming
-    const numRevealedSets = melds.length;
-    let winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
-    if (winResult.isWin) {
-      console.log(`[CLAIM] Player ${player.name} wins immediately after claiming gang!`);
-      game.lastDiscardedTile = null;
-      game.lastDiscardedBy = null;
-      PhaseThree.endGame(game, 'win_by_discard', playerId, winResult, discardedBy);
-      return;
-    }
+    // TODO: double check why AI added check win here, this is claim gang
+    // const numRevealedSets = melds.length;
+    // let winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, null);
+    // if (winResult.isWin) {
+    //   console.log(`[CLAIM] Player ${player.name} wins immediately after claiming gang!`);
+    //   game.lastDiscardedTile = null;
+    //   game.lastDiscardedBy = null;
+    //   PhaseThree.endGame(game, 'win_by_discard', playerId, winResult, discardedBy);
+    //   return;
+    // }
 
     // 搶槓 (Robbing the Kong) - Check if other players can win with the gang tile
-    console.log(`[搶槓] Checking if other players can win with gang tile: ${tile.suit}-${tile.value}`);
-    PhaseTwo.checkRobGangWin(game, tile, playerId, discardedBy);
+    // TODO: double check why AI added robGang here, this is claim gang
+    // console.log(`[搶槓] Checking if other players can win with gang tile: ${tile.suit}-${tile.value}`);
+    // PhaseTwo.checkRobGangWin(game, tile, playerId, discardedBy);
   }
 
   /**
@@ -1140,94 +1076,94 @@ export class PhaseTwo {
    * @param {string} gangPlayerId - The player who claimed gang
    * @param {string} originalDiscardedBy - The player who originally discarded the tile
    */
-  static checkRobGangWin(game, tile, gangPlayerId, originalDiscardedBy) {
-    const robGangOptions = [];
-
-    game.players.forEach((player) => {
-      if (player.id === gangPlayerId) return;
-
-      const hand = game.playerHands.get(player.id);
-      const melds = game.melds.get(player.id);
-      const numRevealedSets = melds.length;
-
-      // Check if this player can win with the gang tile
-      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
-      if (winResult.isWin) {
-        const handWithTile = [...hand, tile];
-        const allWinCombinations = WinValidator.findWinningCombinations(handWithTile, numRevealedSets, tile);
-        const winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
-
-        console.log(`[搶槓] 🎉 ${player.name} can win by robbing the kong!`);
-        robGangOptions.push({
-          playerId: player.id,
-          canHu: true,
-          winCombinations: winCombinations
-        });
-      }
-    });
-
-    if (robGangOptions.length === 0) {
-      // No one can rob the kong, continue with 補牌
-      console.log(`[搶槓] No one can rob the kong, continuing with 補牌...`);
-      PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
-      return;
-    }
-
-    // Store pending rob gang state
-    game.pendingRobGang = {
-      tile: tile,
-      gangPlayerId: gangPlayerId,
-      originalDiscardedBy: originalDiscardedBy,
-      options: robGangOptions
-    };
-
-    // Clear any existing claims
-    game.pendingClaims.clear();
-    game.claimWindowOpen = true;
-    game.playersWithClaimOptions.clear();
-    game.playersPassed.clear();
-
-    robGangOptions.forEach(option => {
-      game.playersWithClaimOptions.add(option.playerId);
-    });
-
-    // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
-    const freezeTimeout = game.considerTimeout * 1000;
-
-    // Notify all players of rob gang period
-    game.broadcast({
-      type: 'rob_gang_period_start',
-      payload: {
-        tile: tile,
-        gangPlayerId: gangPlayerId,
-        timeout: freezeTimeout
-      }
-    });
-
-    // Send claim options to players who can rob the kong
-    robGangOptions.forEach(option => {
-      const player = game.players.find(p => p.id === option.playerId);
-      player.ws.send(JSON.stringify({
-        type: 'claim_options',
-        payload: {
-          tile: tile,
-          canPong: false,
-          canGang: false,
-          canChow: false,
-          canShang: false,
-          canHu: true,
-          winCombinations: option.winCombinations,
-          isRobGang: true
-        }
-      }));
-    });
-
-    // Set timeout for rob gang period
-    game.claimFreezeTimer = setTimeout(() => {
-      console.log(`[搶槓] Timeout expired, checking claims...`);
-      PhaseTwo.resolveRobGangClaims(game);
-    }, freezeTimeout);
-  }
+  // static checkRobGangWin(game, tile, gangPlayerId, originalDiscardedBy) {
+  //   const robGangOptions = [];
+  //
+  //   game.players.forEach((player) => {
+  //     if (player.id === gangPlayerId) return;
+  //
+  //     const hand = game.playerHands.get(player.id);
+  //     const melds = game.melds.get(player.id);
+  //     const numRevealedSets = melds.length;
+  //
+  //     // Check if this player can win with the gang tile
+  //     const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+  //     if (winResult.isWin) {
+  //       const handWithTile = [...hand, tile];
+  //       const allWinCombinations = WinValidator.findWinningCombinations(handWithTile, numRevealedSets, tile);
+  //       const winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
+  //
+  //       console.log(`[搶槓] 🎉 ${player.name} can win by robbing the kong!`);
+  //       robGangOptions.push({
+  //         playerId: player.id,
+  //         canHu: true,
+  //         winCombinations: winCombinations
+  //       });
+  //     }
+  //   });
+  //
+  //   if (robGangOptions.length === 0) {
+  //     // No one can rob the kong, continue with 補牌
+  //     console.log(`[搶槓] No one can rob the kong, continuing with 補牌...`);
+  //     PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
+  //     return;
+  //   }
+  //
+  //   // Store pending rob gang state
+  //   game.pendingRobGang = {
+  //     tile: tile,
+  //     gangPlayerId: gangPlayerId,
+  //     originalDiscardedBy: originalDiscardedBy,
+  //     options: robGangOptions
+  //   };
+  //
+  //   // Clear any existing claims
+  //   game.pendingClaims.clear();
+  //   game.claimWindowOpen = true;
+  //   game.playersWithClaimOptions.clear();
+  //   game.playersPassed.clear();
+  //
+  //   robGangOptions.forEach(option => {
+  //     game.playersWithClaimOptions.add(option.playerId);
+  //   });
+  //
+  //   // Calculate freezeTimeout: considerTimeout - 2, minimum 3 seconds
+  //   const freezeTimeout = game.considerTimeout * 1000;
+  //
+  //   // Notify all players of rob gang period
+  //   game.broadcast({
+  //     type: 'rob_gang_period_start',
+  //     payload: {
+  //       tile: tile,
+  //       gangPlayerId: gangPlayerId,
+  //       timeout: freezeTimeout
+  //     }
+  //   });
+  //
+  //   // Send claim options to players who can rob the kong
+  //   robGangOptions.forEach(option => {
+  //     const player = game.players.find(p => p.id === option.playerId);
+  //     player.ws.send(JSON.stringify({
+  //       type: 'claim_options',
+  //       payload: {
+  //         tile: tile,
+  //         canPong: false,
+  //         canGang: false,
+  //         canChow: false,
+  //         canShang: false,
+  //         canHu: true,
+  //         winCombinations: option.winCombinations,
+  //         isRobGang: true
+  //       }
+  //     }));
+  //   });
+  //
+  //   // Set timeout for rob gang period
+  //   game.claimFreezeTimer = setTimeout(() => {
+  //     console.log(`[搶槓] Timeout expired, checking claims...`);
+  //     PhaseTwo.resolveRobGangClaims(game);
+  //   }, freezeTimeout);
+  // }
 
   /**
    * Resolve rob gang claims after timeout or all players responded
@@ -1262,12 +1198,12 @@ export class PhaseTwo {
       game.pendingRobGang = null;
       game.pendingClaims.clear();
 
-      if (isSelfGang) {
-        // Gang already completed, just draw replacement tile
-        PhaseTwo.continueAfterSelfGang(game, gangPlayerId);
-      } else {
-        PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
-      }
+      // if (isSelfGang) {
+      //   // Gang already completed, just draw replacement tile
+      //   PhaseTwo.continueAfterSelfGang(game, gangPlayerId);
+      // } else {
+      //   PhaseTwo.continueAfterGangClaim(game, gangPlayerId);
+      // }
       return;
     }
 
@@ -1382,15 +1318,11 @@ export class PhaseTwo {
     const hand = game.playerHands.get(playerId);
     const melds = game.melds.get(playerId);
 
-    console.log(`[SELF-GANG] ${player.name} is performing self-gang...`);
-
     if (combinations.length === 0) {
-      console.log(`[SELF-GANG] ❌ No combinations provided`);
       return;
     }
 
     const combo = combinations[0];
-    console.log(`[SELF-GANG] Processing: ${combo.type} - ${combo.suit}-${combo.value}`);
 
     if (combo.type === 'concealed_gang') {
       // 暗槓: Complete immediately (cannot be robbed)
@@ -1415,7 +1347,9 @@ export class PhaseTwo {
       });
 
       // Continue directly to draw replacement tile
-      PhaseTwo.continueAfterSelfGang(game, playerId);
+      // PhaseTwo.continueAfterSelfGang(game, playerId);
+      console.log(`[GANG_CLAIM] Drawing replacement tile (補槓)...`);
+      PhaseTwo.prepareNextTurn(game, player, true);
 
     } else if (combo.type === 'add_to_pong') {
       // 碰上槓: Complete the gang FIRST, then check for 搶槓 before drawing
@@ -1424,7 +1358,6 @@ export class PhaseTwo {
       );
 
       if (!matchingTile) {
-        console.log(`[SELF-GANG] ❌ Cannot find matching tile for add-to-pong`);
         return;
       }
 
@@ -1457,8 +1390,11 @@ export class PhaseTwo {
       });
 
       // Step 4: Check for 搶槓 BEFORE drawing replacement tile
-      console.log(`[SELF-GANG] 碰上槓 completed - now checking for 搶槓 with tile: ${matchingTile.suit}-${matchingTile.value}`);
       PhaseTwo.checkRobGangWinForSelfGang(game, matchingTile, playerId);
+
+      console.log(`[GANG_CLAIM] Drawing replacement tile (補槓)...`);
+      // TODO: check whether need if case here
+      PhaseTwo.prepareNextTurn(game, player, true);
     }
   }
 
@@ -1492,9 +1428,7 @@ export class PhaseTwo {
     });
 
     if (robGangOptions.length === 0) {
-      // No one can rob the kong, continue with 補牌 (gang already completed)
       console.log(`[搶槓] No one can rob the self-gang, continuing with 補牌...`);
-      PhaseTwo.continueAfterSelfGang(game, gangPlayerId);
       return;
     }
 
@@ -1712,14 +1646,13 @@ export class PhaseTwo {
       payload: { playerId, tile, meld: newMeld, discardPile, discardedBy }
     });
 
-    const selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-    const canSelfGang = selfGangCombinations.length > 0;
+    const {gangOptions, canGang: canSelfGang} = GangValidator.checkSelfGangOptions(game, hand, melds);
 
     player.ws.send(JSON.stringify({
       type: 'hand_update',
       payload: {
         hand, tilesRemaining: game.tileManager.getRemainingCount(),
-        canSelfGang, selfGangCombinations
+        canSelfGang, selfGangCombinations: gangOptions
       }
     }));
 
@@ -1873,11 +1806,7 @@ export class PhaseTwo {
    * Standardized draw function that handles bonus tiles, win validation, and gang validation
    */
   static drawTileWithBonusCheck(game, playerId) {
-    const player = game.players.find(p => p.id === playerId);
     const hand = game.playerHands.get(playerId);
-    // const melds = game.melds.get(playerId);
-
-    console.log(`[DRAW] 🎲 drawTileWithBonusCheck called for player ${playerId}`);
 
     let tile = game.tileManager.drawTile();
     const bonusTilesDrawn = [];
@@ -1887,60 +1816,21 @@ export class PhaseTwo {
     }
 
     while (tile && GameUtils.isBonusTile(tile)) {
-      console.log(`[DRAW] 🌸 Drew bonus tile: ${tile.suit}-${tile.value}, replacing...`);
       bonusTilesDrawn.push(tile);
       const revealed = game.revealedBonusTiles.get(playerId);
       revealed.push(tile);
       tile = game.tileManager.drawTile();
 
       if (!tile) {
-        // PhaseThree.endGame(game, 'draw');
         return null;
       }
     }
 
-    console.log(`[DRAW] ✅ ${player.name} drew: ${tile.suit}-${tile.value}`);
-
-    // // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
-    // const numRevealedSets = melds.length;
-    // const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
-    // const canSelfDrawWin = winResult.isWin;
-    //
-    // let selfDrawWinCombinations = [];
-    // if (canSelfDrawWin) {
-    //   const handWithDrawnTile = [...hand, tile];
-    //   const allCombinations = WinValidator.findWinningCombinations(handWithDrawnTile, numRevealedSets, tile);
-    //   selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
-    //   console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
-    // }
-
-    // Add tile to hand
     hand.push(tile);
-
-    // Check for self-gang options AFTER adding tile to hand
-    // Skip self-gang check for players in 聽牌 mode - they can only win or discard
-    // const isTing = game.tingStatus.get(playerId);
-    // let selfGangCombinations = [];
-    // let canSelfGang = false;
-    //
-    // if (!isTing) {
-    //   selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-    //   canSelfGang = selfGangCombinations.length > 0;
-    //
-    //   if (canSelfGang) {
-    //     console.log(`[DRAW] 🎴 ${player.name} can self-gang with ${selfGangCombinations.length} options`);
-    //   }
-    // } else {
-    //   console.log(`[DRAW] 🀄 ${player.name} is in 聽牌 mode - skipping self-gang check`);
-    // }
 
     return {
       tile,
       bonusTilesDrawn,
-      // canSelfDrawWin,
-      // selfDrawWinCombinations,
-      // canSelfGang,
-      // selfGangCombinations
     };
   }
 
@@ -1985,16 +1875,11 @@ export class PhaseTwo {
     // Check for 槓 options (暗槓 and 碰上槓)
     // Skip self-gang check for players in 聽牌 mode - they can only win or discard
     const isTing = game.tingStatus.get(playerId);
-    let selfGangCombinations = [];
+    let gangOptions = [];
     let canSelfGang = false;
 
     if (!isTing) {
-      selfGangCombinations = PhaseTwo.checkSelfGangOptions(game, hand, melds);
-      canSelfGang = selfGangCombinations.length > 0;
-
-      if (canSelfGang) {
-        console.log(`[CHECK_OPTIONS] 🎴 Player can 槓 with ${selfGangCombinations.length} options`);
-      }
+      ({gangOptions, canGang: canSelfGang}= GangValidator.checkSelfGangOptions(game, hand, melds))
     } else {
       console.log(`[CHECK_OPTIONS] 🀄 Player is in 聽牌 mode - skipping self-gang check`);
     }
@@ -2003,7 +1888,7 @@ export class PhaseTwo {
       canSelfDrawWin,
       selfDrawWinCombinations,
       canSelfGang,
-      selfGangCombinations
+      selfGangCombinations: gangOptions
     };
   }
 }
