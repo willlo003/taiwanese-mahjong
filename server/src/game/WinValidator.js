@@ -4,130 +4,29 @@ export class WinValidator {
    * @param {Array} handTiles - Tiles in hand (including the last drawn/claimed tile)
    * @param {number} numRevealedMelds - Number of revealed melds (碰/上/槓)
    * @param {Object} lastTile - The last tile drawn or claimed
+   * @param player
    * @returns {Object} { isWin: boolean, pattern: string|null, score: number }
    */
-  static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile = null) {
-
-    const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
-    if (lastTile) {
-      if (!nonBonusTiles.includes(lastTile)) {
-        nonBonusTiles.push(lastTile)
-      }
-    }
-
-    const normalWin = this.checkNormalWinWithMelds(nonBonusTiles, numRevealedMelds);
-    if (normalWin.isWin) {
-      console.log(`[WIN_VALIDATOR] WIN! Normal pattern`);
-      return normalWin;
+  static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile, player) {
+    let nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
+    nonBonusTiles.push(lastTile);
+    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+    if (normalCombos.length > 0) {
+      console.log(`[WIN_VALIDATOR] Normal combinations.pattern:`, normalCombos.pattern);
+      console.log(`[WIN_VALIDATOR] 🎉 WIN! Normal pattern ${player.name}`);
+      return { isWin: true, pattern: 'standard', combinations: this.deduplicateWinCombinations(normalCombos) };
     }
 
     if (numRevealedMelds === 0) {
-      const liguligu = this.checkLiguLiguWithMelds(nonBonusTiles, numRevealedMelds);
-      if (liguligu.isWin) {
-        console.log(`[WIN_VALIDATOR] WIN! Ligu Ligu pattern`);
-        return liguligu;
+      const liguLiguCombos = this.findLiguLiguCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+      console.log(`[WIN_VALIDATOR] liguLiguCombos :`, liguLiguCombos);
+      if (liguLiguCombos.length > 0) {
+        console.log(`[WIN_VALIDATOR] 🎉 WIN! Ligu Ligu pattern for ${player.name}`);
+        return { isWin: true, pattern: 'ligu_ligu', combinations: this.deduplicateWinCombinations(liguLiguCombos) };
       }
     }
 
-    console.log(`[WIN_VALIDATOR] No valid winning combination found`);
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check for normal win pattern: 5 sets + 1 pair
-   * With revealed melds, we need (5 - numRevealedMelds) sets + 1 pair from hand
-   */
-  static checkNormalWinWithMelds(handTiles, numRevealedMelds) {
-    const neededSets = 5 - numRevealedMelds;
-    // console.log(`[WIN_VALIDATOR] Normal pattern: need ${neededSets} sets + 1 pair from hand`);
-
-    // Special case: if we need 0 sets (all 5 sets revealed), we only need a pair
-    if (neededSets === 0) {
-      if (handTiles.length !== 2) {
-        // console.log(`[WIN_VALIDATOR] Need 0 sets but have ${handTiles.length} tiles (expected 2 for a pair)`);
-        return { isWin: false, pattern: null };
-      }
-      const [tile1, tile2] = handTiles;
-      const isPair = tile1.suit === tile2.suit && tile1.value === tile2.value;
-      // console.log(`[WIN_VALIDATOR] Only need pair, checking if pair: ${isPair}`);
-      return { isWin: isPair, pattern: 'standard', score: isPair ? 1 : 0 };
-    }
-
-    const tileCounts = this.countTiles(handTiles);
-    // console.log(`[WIN_VALIDATOR] Tile counts:`, tileCounts);
-
-    // Try to find a pair and check if remaining tiles form neededSets sets
-    for (const [tileKey, count] of Object.entries(tileCounts)) {
-      if (count >= 2) {
-        // console.log(`[WIN_VALIDATOR] Trying ${tileKey} as pair...`);
-        const remainingCounts = { ...tileCounts };
-        remainingCounts[tileKey] -= 2;
-
-        if (this.canFormSets(remainingCounts, neededSets)) {
-          // console.log(`[WIN_VALIDATOR] WIN! Normal pattern with pair: ${tileKey}`);
-          return { isWin: true, pattern: 'standard', score: 1 };
-        }
-      }
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check for 嚦咕嚦咕 pattern: 1 pong/kong + 7 pairs
-   * With revealed melds, we need (1 - numRevealedMelds) pong/kong + 7 pairs total
-   */
-  static checkLiguLiguWithMelds(handTiles, numRevealedMelds) {
-    // console.log(`[WIN_VALIDATOR] 嚦咕嚦咕 pattern: ${numRevealedMelds} revealed melds`);
-
-    // We need at least 1 revealed or concealed pong/kong
-    // If numRevealedMelds >= 1, we already have the required pong/kong
-    // If numRevealedMelds === 0, we need 1 pong/kong from hand
-
-    const tileCounts = this.countTiles(handTiles);
-    const pairs = [];
-    let hasPongInHand = false;
-
-    // Count pairs and check for pong/kong in hand
-    for (const [tileKey, count] of Object.entries(tileCounts)) {
-      if (count >= 3) {
-        hasPongInHand = true;
-      }
-      if (count === 2) {
-        pairs.push(tileKey);
-      } else if (count === 4) {
-        // 4 of a kind can be treated as pong + pair OR 2 pairs
-        pairs.push(tileKey);
-        pairs.push(tileKey);
-      }
-    }
-
-    // Calculate total pairs needed
-    // Total tiles in a winning hand = 17 (5 sets * 3 + 1 pair + 1 drawn)
-    // For 嚦咕嚦咕: 1 pong (3 tiles) + 7 pairs (14 tiles) = 17 tiles
-    // With revealed melds: each revealed meld = 3 tiles
-    // Remaining tiles should form pairs
-
-    // Need 1 pong from hand + remaining tiles form pairs
-    if (hasPongInHand) {
-      // Check if we can form 1 pong + 7 pairs total
-      // Try each possible pong
-      for (const [tileKey, count] of Object.entries(tileCounts)) {
-        if (count >= 3) {
-          const remainingCounts = { ...tileCounts };
-          remainingCounts[tileKey] -= 3;
-
-          // Check if remaining tiles form exactly 7 pairs
-          const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
-          const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
-
-          if (allPairs && remainingPairs === 7) {
-            return { isWin: true, pattern: 'ligu_ligu', score: 4 };
-          }
-        }
-      }
-    }
-
+    console.log(`[WIN_VALIDATOR] No valid winning combination found for ${player.name}`);
     return { isWin: false, pattern: null };
   }
 
@@ -254,42 +153,6 @@ export class WinValidator {
   }
 
   /**
-   * Check for Seven Pairs
-   */
-  static isSevenPairs(tiles) {
-    if (tiles.length !== 14) return false;
-
-    const tileCounts = this.countTiles(tiles);
-    const pairs = Object.values(tileCounts).filter(count => count === 2);
-    
-    return pairs.length === 7;
-  }
-
-  /**
-   * Check for Thirteen Orphans
-   */
-  static isThirteenOrphans(tiles) {
-    if (tiles.length !== 14) return false;
-    
-    const orphans = [
-      'bamboo-1', 'bamboo-9',
-      'character-1', 'character-9',
-      'dot-1', 'dot-9',
-      'wind-east', 'wind-south', 'wind-west', 'wind-north',
-      'dragon-red', 'dragon-green', 'dragon-white'
-    ];
-    
-    const tileCounts = this.countTiles(tiles);
-    const orphanCounts = orphans.map(key => tileCounts[key] || 0);
-    
-    // Must have all 13 orphans, with one as a pair
-    const hasAllOrphans = orphanCounts.every(count => count >= 1);
-    const totalOrphans = orphanCounts.reduce((sum, count) => sum + count, 0);
-    
-    return hasAllOrphans && totalOrphans === 14;
-  }
-
-  /**
    * Count tiles by type
    */
   static countTiles(tiles) {
@@ -316,35 +179,9 @@ export class WinValidator {
   }
 
   /**
-   * Find all possible winning combinations for a hand
-   * Returns an array of combinations, each showing which tiles form the winning pattern with the last tile
-   * @param {Array} handTiles - All tiles in hand (including last drawn/claimed tile)
-   * @param {number} numRevealedMelds - Number of revealed melds
-   * @param {Object} lastTile - The last tile drawn or claimed
-   * @returns {Array} Array of winning combinations, each with { pattern, tiles, lastTileRole }
-   */
-  static findWinningCombinations(handTiles, numRevealedMelds, lastTile) {
-    const combinations = [];
-
-    // Filter out bonus tiles
-    const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
-
-    // Check normal win pattern
-    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-    combinations.push(...normalCombos);
-
-    // Check 嚦咕嚦咕 pattern
-    const liguCombos = this.findLiguLiguCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-    combinations.push(...liguCombos);
-
-    return combinations;
-  }
-
-  /**
    * Find all normal win combinations (5 sets + 1 pair)
    */
   static findNormalWinCombinations(handTiles, numRevealedMelds, lastTile) {
-    console.log(`normal win combinations handSize ${handTiles.length}, lastTile ${lastTile}`);
     const combinations = [];
     const neededSets = 5 - numRevealedMelds;
     const tileCounts = this.countTiles(handTiles);
@@ -501,7 +338,6 @@ export class WinValidator {
    * Find all 嚦咕嚦咕 combinations (1 pong/kong + 7 pairs)
    */
   static findLiguLiguCombinations(handTiles, numRevealedMelds, lastTile) {
-    console.log(`ligu win combinations handSize ${handTiles.length}, lastTile ${lastTile}`);
     const combinations = [];
     const tileCounts = this.countTiles(handTiles);
 
@@ -561,6 +397,20 @@ export class WinValidator {
     }
 
     return combinations;
+  }
+
+  static deduplicateWinCombinations(combinations) {
+    const seen = new Set();
+    return combinations.filter(combo => {
+      // Create a unique key based on lastTileRole and displayTiles
+      const tiles = combo.displayTiles || combo.pairTiles || [];
+      const key = combo.lastTileRole + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 }
 

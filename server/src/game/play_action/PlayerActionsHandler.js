@@ -34,7 +34,7 @@ export class PlayerActionsHandler {
                 TingHandler.handleTing(game, playerId, action.tile);
                 return;
             case 'self_gang':
-                GangHandler.handleSelfGang(game, playerId, action.tile);
+                GangHandler.handleSelfGang(game, playerId, action.combinations);
                 return;
             case 'cancel_claim':
                 CancelClaimHandler.handleCancelClaim(game, playerId);
@@ -42,36 +42,10 @@ export class PlayerActionsHandler {
             case 'pass':
                 PassHandler.handlePass(game, playerId);
                 return;
-            // case 'pong':
-            // case 'gang':
-            // case 'chow':
-            // case 'shang':
-            //     const registered = PlayerClaimActionsHandler.registerClaim(game, playerId, action.type, action.tiles);
-            //     if (registered) {
-            //         player.ws.send(JSON.stringify({
-            //             type: 'claim_registered',
-            //             payload: {claimType: action.type}
-            //         }));
-            //     }
-            //     return;
             case 'hu':
                 HuHandler.handleHu(game, playerId, action.combination);
                 return;
-                // const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
-                // if (isSelfDraw) {
-                //     // Self-draw win attempt - handle immediately
-                //     PhaseTwo.handleHu(game, playerId, action.combination);
-                //     return;
-                // } else {
-                //     const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles, action.combination);
-                //     if (registered) {
-                //         player.ws.send(JSON.stringify({
-                //             type: 'claim_registered',
-                //             payload: {claimType: action.type}
-                //         }));
-                //     }
-                //     return;
-                // }
+
             default:
                 player.ws.send(JSON.stringify({
                     type: 'error',

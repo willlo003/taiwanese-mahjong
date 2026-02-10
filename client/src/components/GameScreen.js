@@ -895,9 +895,9 @@ function GameScreen({
         <SelfDrawWinPopup
           combinations={selfDrawWinCombinations}
           drawnTile={drawnTile}
-          onConfirm={() => {
+          onConfirm={(selectedCombination) => {
             setShowSelfDrawWinPopup(false);
-            onSelfHu();
+            onSelfHu(selectedCombination);
           }}
           onCancel={() => setShowSelfDrawWinPopup(false)}
         />
@@ -1254,8 +1254,11 @@ function SelfDrawWinPopup({ combinations, drawnTile, onConfirm, onCancel }) {
 
   const handleConfirm = () => {
     // If only one combination, auto-select it
-    if (combinations.length === 1 || selectedCombination !== null) {
-      onConfirm();
+    const combinationIndex = combinations.length === 1 ? 0 : selectedCombination;
+    if (combinationIndex !== null) {
+      const selectedComb = combinations[combinationIndex];
+      console.log('[SelfDrawWinPopup] Confirming with combination:', selectedComb);
+      onConfirm(selectedComb);
     }
   };
 

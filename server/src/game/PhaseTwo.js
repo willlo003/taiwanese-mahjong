@@ -65,24 +65,32 @@ export class PhaseTwo {
       tile = drawResult.tile;
       bonusTilesDrawn = drawResult.bonusTilesDrawn
       game.drawnTile = tile;
-      console.log(`[AUTO-DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
+      console.log(`[TURN] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
       // Check if player can win with self-draw (自摸) BEFORE adding tile to hand
       const numRevealedSets = melds.length;
-      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+      const handWithoutLast = hand.slice(0, hand.length - 1);
+      const winResult = WinValidator.isWinningHandWithMelds(handWithoutLast, numRevealedSets, tile, player);
       canSelfDrawWin = winResult.isWin;
 
-      if (canSelfDrawWin) {
-        const allCombinations = WinValidator.findWinningCombinations(hand, numRevealedSets, tile);
-        selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(allCombinations);
-        console.log(`[DRAW] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+      if (winResult.isWin) {
+        selfDrawWinCombinations = winResult.combinations;
+        console.log(`[TURN] 🎉 ${player.name} can win by self-draw (自摸) with ${selfDrawWinCombinations.length} combinations!`);
+      }
+    } else if (hand.length === 17 && !shouldDraw) {
+      const lastTile = hand[hand.length - 1];
+      const handWithoutLast = hand.slice(0, hand.length - 1);
+      const winResult = WinValidator.isWinningHandWithMelds(handWithoutLast, 0, lastTile, player);
+      canSelfDrawWin = winResult.isWin;
+
+      if (winResult.isWin) {
+        selfDrawWinCombinations = winResult.combinations;
+        console.log(`[TURN] 🎉 ${player.name} can win by self-draw (天胡) with ${selfDrawWinCombinations.length} combinations!`);
       }
     }
 
     if (!isTing) {
       ({gangOptions, canGang: canSelfGang} = GangValidator.checkSelfGangOptions(game, hand, melds));
     }
-
-    console.log(`[TURN][PLAYER_STATUS][BEFORE] handSize: ${hand.length}, sets: ${melds.length}, isTing: ${isTing}, canSelfGang: ${canSelfGang}, canSelfDrawWin: ${canSelfDrawWin}`);
 
     if (bonusTilesDrawn.length > 0) {
       const revealed = game.revealedBonusTiles.get(playerId);
@@ -281,17 +289,13 @@ export class PhaseTwo {
       const numRevealedSets = melds.length;
 
       // Check if this player can win with the gang tile
-      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+      const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile, player);
       if (winResult.isWin) {
-        const handWithTile = [...hand, tile];
-        const allWinCombinations = WinValidator.findWinningCombinations(handWithTile, numRevealedSets, tile);
-        const winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
-
         console.log(`[搶槓] 🎉 ${player.name} can win by robbing the self-gang!`);
         robGangOptions.push({
           playerId: player.id,
           canHu: true,
-          winCombinations: winCombinations
+          winCombinations: winResult.combinations
         });
       }
     });
@@ -362,7 +366,7 @@ export class PhaseTwo {
    * Move to next turn
    */
   static prepareNextTurn(game, nextPlayer, shouldDraw) {
-    console.log(`=======================================================================================`);
+    console.log(`=============== New Turn ===============`);
 
     console.log(`[TURN] player: ${nextPlayer.name}'s turn, shouldDraw: ${shouldDraw}`);
 
@@ -412,66 +416,6 @@ export class PhaseTwo {
     return {
       tile,
       bonusTilesDrawn,
-    };
-  }
-
-
-  /**
-   * Check self-draw win (自摸) and gang options for an existing hand
-   * Used for dealer's first turn (天胡) and other scenarios where we need to check without drawing
-   * @param {StatusManager} game - The game instance
-   * @param {string} playerId - The player's ID
-   * @returns {object} - { canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations }
-   */
-
-  // TODO: can remove
-  static checkSelfDrawOptions(game, playerId) {
-    const hand = game.playerHands.get(playerId);
-    const melds = game.melds.get(playerId) || [];
-    const numRevealedSets = melds.length;
-
-    console.log(`[CHECK_OPTIONS] Checking self-draw options for player ${playerId}`);
-    console.log(`[CHECK_OPTIONS] Hand size: ${hand.length}, Melds: ${melds.length}`);
-
-    // Check for 自摸 (self-draw win)
-    // For a 17-tile hand, try each tile as the potential "last tile"
-    let canSelfDrawWin = false;
-    let selfDrawWinCombinations = [];
-
-    for (let i = 0; i < hand.length; i++) {
-      const testHand = [...hand];
-      const lastTile = testHand.splice(i, 1)[0];
-      const winResult = WinValidator.isWinningHandWithMelds(testHand, numRevealedSets, lastTile);
-      if (winResult.isWin) {
-        canSelfDrawWin = true;
-        const combinations = WinValidator.findWinningCombinations(hand, numRevealedSets, lastTile);
-        selfDrawWinCombinations.push(...combinations);
-      }
-    }
-
-    // Deduplicate win combinations
-    if (selfDrawWinCombinations.length > 0) {
-      selfDrawWinCombinations = GameUtils.deduplicateWinCombinations(selfDrawWinCombinations);
-      console.log(`[CHECK_OPTIONS] 🎉 Player can 自摸 with ${selfDrawWinCombinations.length} combinations`);
-    }
-
-    // Check for 槓 options (暗槓 and 碰上槓)
-    // Skip self-gang check for players in 聽牌 mode - they can only win or discard
-    const isTing = game.tingStatus.get(playerId);
-    let gangOptions = [];
-    let canSelfGang = false;
-
-    if (!isTing) {
-      ({gangOptions, canGang: canSelfGang}= GangValidator.checkSelfGangOptions(game, hand, melds))
-    } else {
-      console.log(`[CHECK_OPTIONS] 🀄 Player is in 聽牌 mode - skipping self-gang check`);
-    }
-
-    return {
-      canSelfDrawWin,
-      selfDrawWinCombinations,
-      canSelfGang,
-      selfGangCombinations: gangOptions
     };
   }
 }

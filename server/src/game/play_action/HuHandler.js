@@ -8,23 +8,14 @@ export class HuHandler {
         const playerIndex = game.players.indexOf(player);
 
         console.log(`[HU] handleHu called for player ${player?.name}, playerId: ${playerId}`);
-        console.log(`[HU] game.drawnTile:`, game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'null');
-        if (combination) {
-            console.log(`[HU] Winning combination:`, JSON.stringify(combination));
-        }
-
         // Determine if this is self-draw (自摸) or win by discard (出沖)
         const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
-        console.log(`[HU] isSelfDraw: ${isSelfDraw}`);
 
         if (isSelfDraw) {
             // 自摸 - self-draw win, no loser (all others pay)
             // Check if this is 天胡 (heavenly hand) - dealer wins on first turn without drawing from wall
             // 天胡 is detected by drawnTile being null (no tile was drawn from the wall)
             const isTianHu = !game.drawnTile;
-
-            console.log(`[HU] game.drawnTile: ${game.drawnTile ? `${game.drawnTile.suit}-${game.drawnTile.value}` : 'null'}, isTianHu: ${isTianHu}`);
-
             if (isTianHu) {
                 console.log(`[HU] Player ${player?.name} wins by 天胡 (Heavenly Hand) - no drawn tile to highlight`);
             } else {
@@ -47,9 +38,7 @@ export class HuHandler {
         const discardedTile = game.lastDiscardedTile;
         const discardedByPlayer = game.players.find(p => p.id === game.lastDiscardedBy);
 
-        console.log(`[WIN] 🎉 ${player?.name} is claiming 食 (hu) to win!`);
-        console.log(`[WIN] Winning tile: ${discardedTile?.suit}-${discardedTile?.value} (discarded by ${discardedByPlayer?.name})`);
-        console.log(`[WIN] claimData:`, JSON.stringify(claimData));
+        console.log(`[WIN] 🎉 ${player?.name} is claiming 食 (hu) to win! discardedByPlayer: ${discardedByPlayer?.name}`);
 
         // Extract the winning combination from claim data
         const winningCombination = claimData?.combination || null;

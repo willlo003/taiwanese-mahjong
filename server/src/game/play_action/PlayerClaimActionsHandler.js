@@ -78,16 +78,13 @@ export class PlayerClaimActionsHandler {
 
             // Check for 食 (Hu/Win)
             const numRevealedSets = melds.length;
-            const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile);
+            const winResult = WinValidator.isWinningHandWithMelds(hand, numRevealedSets, tile, player);
             const canHu = winResult.isWin;
-            console.log(`[CLAIM] Checking win for player ${player.name} - Win result:`, winResult);
 
             let winCombinations = [];
             if (canHu) {
-                const handWithDiscardedTile = [...hand, tile];
-                const allWinCombinations = WinValidator.findWinningCombinations(handWithDiscardedTile, numRevealedSets, tile);
-                winCombinations = GameUtils.deduplicateWinCombinations(allWinCombinations);
-                console.log(`  Win combinations found: ${allWinCombinations.length} (${winCombinations.length} unique)`);
+                winCombinations = winResult.combinations;
+                console.log(`[CLAIM] 🀄 ${player.name} can claim 食 (hu), winResult: ${winResult}`);
             }
 
             // Skip 碰/槓/上 claims for players in 聽牌 mode - they can only claim 食
