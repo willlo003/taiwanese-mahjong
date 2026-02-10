@@ -32,25 +32,6 @@ class GameUtils {
       return true;
     });
   }
-
-  /**
-   * Helper function to deduplicate win combinations based on displayTiles
-   * @param {Array} combinations - Array of win combination objects
-   * @returns {Array} - Deduplicated array of combinations
-   */
-  static deduplicateWinCombinations(combinations) {
-    const seen = new Set();
-    return combinations.filter(combo => {
-      // Create a unique key based on lastTileRole and displayTiles
-      const tiles = combo.displayTiles || combo.pairTiles || [];
-      const key = combo.lastTileRole + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
 }
 
 export default GameUtils;

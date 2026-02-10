@@ -4,232 +4,32 @@ export class WinValidator {
    * @param {Array} handTiles - Tiles in hand (including the last drawn/claimed tile)
    * @param {number} numRevealedMelds - Number of revealed melds (碰/上/槓)
    * @param {Object} lastTile - The last tile drawn or claimed
+   * @param player
    * @returns {Object} { isWin: boolean, pattern: string|null, score: number }
    */
-  static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile = null) {
-    // Taiwanese Mahjong has 2 winning patterns (bonus tiles don't count):
-    // 1. Normal: 5 sets + 1 pair (revealed melds reduce needed sets from 5)
-    // 2. 嚦咕嚦咕: 1 pong/kong + 7 pairs (revealed melds reduce needed sets from 1)
-
-    console.log(`[WIN_VALIDATOR] Checking hand with ${handTiles.length} tiles, ${numRevealedMelds} revealed melds`);
-    console.log(`[WIN_VALIDATOR] Hand tiles:`, handTiles.map(t => `${t.suit}-${t.value}`).join(', '));
-
-    // Filter out bonus tiles (they don't count towards winning patterns)
-    const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
-    if (lastTile) {
-      console.log(`[WIN_VALIDATOR] Last tiles:`, `${lastTile.suit}-${lastTile.value}`);
-      nonBonusTiles.push(lastTile)
-    }
-    console.log(`[WIN_VALIDATOR] Non-bonus tiles: ${nonBonusTiles.length}`);
-
-    // Check Pattern 1: Normal win (5 sets + 1 pair)
-    const normalWin = this.checkNormalWinWithMelds(nonBonusTiles, numRevealedMelds);
-    if (normalWin.isWin) {
-      return normalWin;
+  static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile, player) {
+    let nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
+    nonBonusTiles.push(lastTile);
+    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+    if (normalCombos.length > 0) {
+      console.log(`[WIN_VALIDATOR] Normal combinations.pattern:`, normalCombos.pattern);
+      console.log(`[WIN_VALIDATOR] 🎉 WIN! Normal pattern ${player.name}`);
+      return { isWin: true, pattern: 'standard', combinations: this.deduplicateWinCombinations(normalCombos) };
     }
 
     if (numRevealedMelds === 0) {
-      // Check Pattern 2: 嚦咕嚦咕 (1 pong/kong + 7 pairs)
-      const liguligu = this.checkLiguLiguWithMelds(nonBonusTiles, numRevealedMelds);
-      if (liguligu.isWin) {
-        return liguligu;
+      const liguLiguCombos = this.findLiguLiguCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+      console.log(`[WIN_VALIDATOR] liguLiguCombos :`, liguLiguCombos);
+      if (liguLiguCombos.length > 0) {
+        console.log(`[WIN_VALIDATOR] 🎉 WIN! Ligu Ligu pattern for ${player.name}`);
+        return { isWin: true, pattern: 'ligu_ligu', combinations: this.deduplicateWinCombinations(liguLiguCombos) };
       }
     }
 
-    console.log(`[WIN_VALIDATOR] No valid winning combination found`);
+    console.log(`[WIN_VALIDATOR] No valid winning combination found for ${player.name}`);
     return { isWin: false, pattern: null };
   }
 
-  /**
-   * Check for normal win pattern: 5 sets + 1 pair
-   * With revealed melds, we need (5 - numRevealedMelds) sets + 1 pair from hand
-   */
-  static checkNormalWinWithMelds(handTiles, numRevealedMelds) {
-    const neededSets = 5 - numRevealedMelds;
-    console.log(`[WIN_VALIDATOR] Normal pattern: need ${neededSets} sets + 1 pair from hand`);
-
-    // Special case: if we need 0 sets (all 5 sets revealed), we only need a pair
-    if (neededSets === 0) {
-      if (handTiles.length !== 2) {
-        console.log(`[WIN_VALIDATOR] Need 0 sets but have ${handTiles.length} tiles (expected 2 for a pair)`);
-        return { isWin: false, pattern: null };
-      }
-      const [tile1, tile2] = handTiles;
-      const isPair = tile1.suit === tile2.suit && tile1.value === tile2.value;
-      console.log(`[WIN_VALIDATOR] Only need pair, checking if pair: ${isPair}`);
-      return { isWin: isPair, pattern: 'standard', score: isPair ? 1 : 0 };
-    }
-
-    const tileCounts = this.countTiles(handTiles);
-    console.log(`[WIN_VALIDATOR] Tile counts:`, tileCounts);
-
-    // Try to find a pair and check if remaining tiles form neededSets sets
-    for (const [tileKey, count] of Object.entries(tileCounts)) {
-      if (count >= 2) {
-        console.log(`[WIN_VALIDATOR] Trying ${tileKey} as pair...`);
-        const remainingCounts = { ...tileCounts };
-        remainingCounts[tileKey] -= 2;
-
-        if (this.canFormSets(remainingCounts, neededSets)) {
-          console.log(`[WIN_VALIDATOR] WIN! Normal pattern with pair: ${tileKey}`);
-          return { isWin: true, pattern: 'standard', score: 1 };
-        }
-      }
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check for 嚦咕嚦咕 pattern: 1 pong/kong + 7 pairs
-   * With revealed melds, we need (1 - numRevealedMelds) pong/kong + 7 pairs total
-   */
-  static checkLiguLiguWithMelds(handTiles, numRevealedMelds) {
-    console.log(`[WIN_VALIDATOR] 嚦咕嚦咕 pattern: ${numRevealedMelds} revealed melds`);
-
-    // We need at least 1 revealed or concealed pong/kong
-    // If numRevealedMelds >= 1, we already have the required pong/kong
-    // If numRevealedMelds === 0, we need 1 pong/kong from hand
-
-    const tileCounts = this.countTiles(handTiles);
-    const pairs = [];
-    let hasPongInHand = false;
-
-    // Count pairs and check for pong/kong in hand
-    for (const [tileKey, count] of Object.entries(tileCounts)) {
-      if (count >= 3) {
-        hasPongInHand = true;
-      }
-      if (count === 2) {
-        pairs.push(tileKey);
-      } else if (count === 4) {
-        // 4 of a kind can be treated as pong + pair OR 2 pairs
-        pairs.push(tileKey);
-        pairs.push(tileKey);
-      }
-    }
-
-    // Calculate total pairs needed
-    // Total tiles in a winning hand = 17 (5 sets * 3 + 1 pair + 1 drawn)
-    // For 嚦咕嚦咕: 1 pong (3 tiles) + 7 pairs (14 tiles) = 17 tiles
-    // With revealed melds: each revealed meld = 3 tiles
-    // Remaining tiles should form pairs
-
-    if (numRevealedMelds >= 1) {
-      // We already have the required pong/kong from revealed melds
-      // All hand tiles should form pairs (7 pairs total including revealed)
-      const totalPairsNeeded = 7;
-      const pairsFromRevealed = 0; // Revealed melds are pongs, not pairs
-      const pairsNeededFromHand = totalPairsNeeded;
-
-      console.log(`[WIN_VALIDATOR] 嚦咕嚦咕: need ${pairsNeededFromHand} pairs from hand, have ${pairs.length}`);
-
-      if (pairs.length === pairsNeededFromHand && Object.values(tileCounts).every(c => c === 2)) {
-        console.log(`[WIN_VALIDATOR] WIN! 嚦咕嚦咕 pattern`);
-        return { isWin: true, pattern: 'ligu_ligu', score: 4 };
-      }
-    } else {
-      // Need 1 pong from hand + remaining tiles form pairs
-      if (hasPongInHand) {
-        // Check if we can form 1 pong + 7 pairs total
-        // Try each possible pong
-        for (const [tileKey, count] of Object.entries(tileCounts)) {
-          if (count >= 3) {
-            const remainingCounts = { ...tileCounts };
-            remainingCounts[tileKey] -= 3;
-
-            // Check if remaining tiles form exactly 7 pairs
-            const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
-            const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
-
-            if (allPairs && remainingPairs === 7) {
-              console.log(`[WIN_VALIDATOR] WIN! 嚦咕嚦咕 pattern with pong: ${tileKey}`);
-              return { isWin: true, pattern: 'ligu_ligu', score: 4 };
-            }
-          }
-        }
-      }
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check if a hand is a winning hand (for concealed hands with no revealed melds)
-   * Taiwanese Mahjong winning patterns:
-   * - Normal: 5 sets + 1 pair
-   * - 嚦咕嚦咕: 1 pong/kong + 7 pairs
-   */
-  static isWinningHand(tiles, lastTile = null) {
-    // Valid tile counts for Taiwanese Mahjong:
-    // - 17 tiles: normal winning hand (5 sets + 1 pair)
-    // - 20 tiles: with one concealed gang (4 tiles instead of 3)
-    // - 23 tiles: with two concealed gangs
-    // - 26 tiles: with three concealed gangs
-    // - 29 tiles: with four concealed gangs
-    const validCounts = [17, 20, 23, 26, 29];
-    if (!validCounts.includes(tiles.length)) {
-      console.log(`[WIN_VALIDATOR] Invalid tile count: ${tiles.length}, expected one of: ${validCounts.join(', ')}`);
-      return { isWin: false, pattern: null };
-    }
-
-    // Check for special hands first
-    const specialHand = this.checkSpecialHands(tiles);
-    if (specialHand.isWin) {
-      return specialHand;
-    }
-
-    // Check for standard winning pattern (5 sets + 1 pair)
-    const standardWin = this.checkStandardWin(tiles);
-    if (standardWin.isWin) {
-      return standardWin;
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check for special winning hands
-   */
-  static checkSpecialHands(tiles) {
-    // Seven Pairs (七對子)
-    if (this.isSevenPairs(tiles)) {
-      return { isWin: true, pattern: 'seven_pairs', score: 4 };
-    }
-
-    // Thirteen Orphans (十三么)
-    if (this.isThirteenOrphans(tiles)) {
-      return { isWin: true, pattern: 'thirteen_orphans', score: 8 };
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check for standard win (5 sets + 1 pair) - Taiwanese Mahjong
-   */
-  static checkStandardWin(tiles) {
-    const tileCounts = this.countTiles(tiles);
-
-    // Try to find a pair and check if remaining tiles form 5 sets
-    for (const [tileKey, count] of Object.entries(tileCounts)) {
-      if (count >= 2) {
-        // Try this as the pair
-        const remainingCounts = { ...tileCounts };
-        remainingCounts[tileKey] -= 2;
-
-        if (this.canFormSets(remainingCounts, 5)) {
-          return { isWin: true, pattern: 'standard', score: 1 };
-        }
-      }
-    }
-
-    return { isWin: false, pattern: null };
-  }
-
-  /**
-   * Check if tiles can form N sets (Pong/Gang/Chow)
-   */
   static canFormSets(tileCounts, numSets) {
     if (numSets === 0) {
       // All tiles should be used
@@ -353,42 +153,6 @@ export class WinValidator {
   }
 
   /**
-   * Check for Seven Pairs
-   */
-  static isSevenPairs(tiles) {
-    if (tiles.length !== 14) return false;
-
-    const tileCounts = this.countTiles(tiles);
-    const pairs = Object.values(tileCounts).filter(count => count === 2);
-    
-    return pairs.length === 7;
-  }
-
-  /**
-   * Check for Thirteen Orphans
-   */
-  static isThirteenOrphans(tiles) {
-    if (tiles.length !== 14) return false;
-    
-    const orphans = [
-      'bamboo-1', 'bamboo-9',
-      'character-1', 'character-9',
-      'dot-1', 'dot-9',
-      'wind-east', 'wind-south', 'wind-west', 'wind-north',
-      'dragon-red', 'dragon-green', 'dragon-white'
-    ];
-    
-    const tileCounts = this.countTiles(tiles);
-    const orphanCounts = orphans.map(key => tileCounts[key] || 0);
-    
-    // Must have all 13 orphans, with one as a pair
-    const hasAllOrphans = orphanCounts.every(count => count >= 1);
-    const totalOrphans = orphanCounts.reduce((sum, count) => sum + count, 0);
-    
-    return hasAllOrphans && totalOrphans === 14;
-  }
-
-  /**
    * Count tiles by type
    */
   static countTiles(tiles) {
@@ -412,31 +176,6 @@ export class WinValidator {
       value: isNaN(numValue) ? value : numValue,
       type: ['bamboo', 'character', 'dot'].includes(suit) ? 'suit' : 'honor'
     };
-  }
-
-  /**
-   * Find all possible winning combinations for a hand
-   * Returns an array of combinations, each showing which tiles form the winning pattern with the last tile
-   * @param {Array} handTiles - All tiles in hand (including last drawn/claimed tile)
-   * @param {number} numRevealedMelds - Number of revealed melds
-   * @param {Object} lastTile - The last tile drawn or claimed
-   * @returns {Array} Array of winning combinations, each with { pattern, tiles, lastTileRole }
-   */
-  static findWinningCombinations(handTiles, numRevealedMelds, lastTile) {
-    const combinations = [];
-
-    // Filter out bonus tiles
-    const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
-
-    // Check normal win pattern
-    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-    combinations.push(...normalCombos);
-
-    // Check 嚦咕嚦咕 pattern
-    const liguCombos = this.findLiguLiguCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-    combinations.push(...liguCombos);
-
-    return combinations;
   }
 
   /**
@@ -602,104 +341,76 @@ export class WinValidator {
     const combinations = [];
     const tileCounts = this.countTiles(handTiles);
 
-    if (numRevealedMelds >= 1) {
-      // Already have pong/kong from revealed melds
-      // Check if all hand tiles form pairs
-      const allPairs = Object.values(tileCounts).every(c => c === 0 || c === 2);
-      const pairCount = Object.values(tileCounts).filter(c => c === 2).length;
+    // Need 1 pong from hand + 7 pairs total
+    for (const [tileKey, count] of Object.entries(tileCounts)) {
+      if (count >= 3) {
+        const remainingCounts = { ...tileCounts };
+        remainingCounts[tileKey] -= 3;
 
-      if (allPairs && pairCount === 7) {
-        // Find which pair contains the last tile
-        let displayTiles = [];
-        if (lastTile) {
-          const lastKey = this.makeTileKey(lastTile.suit, lastTile.value);
-          if (tileCounts[lastKey] === 2) {
+        const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
+        const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
+
+        if (allPairs && remainingPairs === 7) {
+          const pongTile = this.parseTileKey(tileKey);
+          const isLastTileInPong = lastTile &&
+            lastTile.suit === pongTile.suit &&
+            lastTile.value === pongTile.value;
+
+          // Get display tiles based on what the last tile completes
+          let displayTiles = [];
+          const pongTiles = handTiles.filter(t =>
+            t.suit === pongTile.suit && t.value === pongTile.value
+          ).slice(0, 3);
+
+          if (isLastTileInPong) {
+            displayTiles = pongTiles;
+          } else if (lastTile) {
             displayTiles = handTiles.filter(t =>
               t.suit === lastTile.suit && t.value === lastTile.value
             ).slice(0, 2);
           }
-        }
 
-        // Extract all pairs as sets
-        const pairs = [];
-        const usedIds = new Set();
-        for (const [key, count] of Object.entries(tileCounts)) {
-          if (count === 2) {
-            const parsed = this.parseTileKey(key);
-            const pairTiles = handTiles.filter(t =>
-              t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
-            ).slice(0, 2);
-            pairTiles.forEach(t => usedIds.add(t.id));
-            pairs.push({ type: 'pair', tiles: pairTiles });
-          }
-        }
-
-        combinations.push({
-          pattern: 'ligu_ligu',
-          lastTileRole: 'pair',
-          displayTiles: displayTiles,
-          sets: [],
-          pairs: pairs
-        });
-      }
-    } else {
-      // Need 1 pong from hand + 7 pairs total
-      for (const [tileKey, count] of Object.entries(tileCounts)) {
-        if (count >= 3) {
-          const remainingCounts = { ...tileCounts };
-          remainingCounts[tileKey] -= 3;
-
-          const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
-          const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
-
-          if (allPairs && remainingPairs === 7) {
-            const pongTile = this.parseTileKey(tileKey);
-            const isLastTileInPong = lastTile &&
-              lastTile.suit === pongTile.suit &&
-              lastTile.value === pongTile.value;
-
-            // Get display tiles based on what the last tile completes
-            let displayTiles = [];
-            const pongTiles = handTiles.filter(t =>
-              t.suit === pongTile.suit && t.value === pongTile.value
-            ).slice(0, 3);
-
-            if (isLastTileInPong) {
-              displayTiles = pongTiles;
-            } else if (lastTile) {
-              displayTiles = handTiles.filter(t =>
-                t.suit === lastTile.suit && t.value === lastTile.value
+          // Extract all pairs
+          const pairs = [];
+          const usedIds = new Set(pongTiles.map(t => t.id));
+          for (const [key, pairCount] of Object.entries(remainingCounts)) {
+            if (pairCount === 2) {
+              const parsed = this.parseTileKey(key);
+              const pairTiles = handTiles.filter(t =>
+                t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
               ).slice(0, 2);
+              pairTiles.forEach(t => usedIds.add(t.id));
+              pairs.push({ type: 'pair', tiles: pairTiles });
             }
-
-            // Extract all pairs
-            const pairs = [];
-            const usedIds = new Set(pongTiles.map(t => t.id));
-            for (const [key, pairCount] of Object.entries(remainingCounts)) {
-              if (pairCount === 2) {
-                const parsed = this.parseTileKey(key);
-                const pairTiles = handTiles.filter(t =>
-                  t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
-                ).slice(0, 2);
-                pairTiles.forEach(t => usedIds.add(t.id));
-                pairs.push({ type: 'pair', tiles: pairTiles });
-              }
-            }
-
-            combinations.push({
-              pattern: 'ligu_ligu',
-              lastTileRole: isLastTileInPong ? 'pong' : 'pair',
-              displayTiles: displayTiles,
-              pongKey: tileKey,
-              sets: [{ type: 'pong', tiles: pongTiles }],
-              pairs: pairs
-            });
           }
+
+          combinations.push({
+            pattern: 'ligu_ligu',
+            lastTileRole: isLastTileInPong ? 'pong' : 'pair',
+            displayTiles: displayTiles,
+            pongKey: tileKey,
+            sets: [{ type: 'pong', tiles: pongTiles }],
+            pairs: pairs
+          });
         }
       }
     }
 
     return combinations;
+  }
+
+  static deduplicateWinCombinations(combinations) {
+    const seen = new Set();
+    return combinations.filter(combo => {
+      // Create a unique key based on lastTileRole and displayTiles
+      const tiles = combo.displayTiles || combo.pairTiles || [];
+      const key = combo.lastTileRole + ':' + tiles.map(t => `${t.suit}-${t.value}`).sort().join(',');
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import './LobbyScreen.css';
 
-function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame, considerTimeout = 5, onSetConsiderTime, debugMode = false, onSetDebugMode }) {
+function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStartGame, considerTimeout = 5, onSetConsiderTime, debugMode = false, onSetDebugMode, startRound = 'east', onSetStartRound, startWind = 'east', onSetStartWind }) {
   // Find the current player from the players list
   const currentPlayer = players.find(p => p.id === playerInfo?.playerId);
   const hasSeat = currentPlayer?.position !== null && currentPlayer?.position !== undefined;
@@ -14,6 +14,20 @@ function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStart
     const time = parseInt(e.target.value, 10);
     if (onSetConsiderTime && time >= 3 && time <= 8) {
       onSetConsiderTime(time);
+    }
+  };
+
+  const handleStartRoundChange = (e) => {
+    const round = e.target.value;
+    if (onSetStartRound) {
+      onSetStartRound(round);
+    }
+  };
+
+  const handleStartWindChange = (e) => {
+    const wind = e.target.value;
+    if (onSetStartWind) {
+      onSetStartWind(wind);
     }
   };
 
@@ -91,37 +105,65 @@ function LobbyScreen({ players, playerInfo, onRandomSeats, onSelectSeat, onStart
           </div>
         )}
 
-        {/* Consider Time Setting */}
-        <div className="consider-time-setting">
-          <label htmlFor="consider-time">⏱️ Turn Timer: </label>
-          <select
-            id="consider-time"
-            value={considerTimeout}
-            onChange={handleConsiderTimeChange}
-            className="consider-time-select"
-          >
-            {[3, 4, 5, 6, 7, 8].map(time => (
-              <option key={time} value={time}>{time} seconds</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Debug Mode Setting */}
-        <div className="debug-mode-setting">
-          <label htmlFor="debug-mode">
-            <input
-              type="checkbox"
-              id="debug-mode"
-              checked={debugMode}
-              onChange={(e) => onSetDebugMode && onSetDebugMode(e.target.checked)}
-              className="debug-mode-checkbox"
-            />
-            🐛 Debug Mode (Specific Tiles)
-          </label>
+        {/* Game Settings - Turn Timer, Starting Round, Starting Wind, Debug Mode */}
+        <div className="game-settings-row">
+          <div className="game-setting">
+            <label htmlFor="consider-time">⏱️ Turn Timer:</label>
+            <select
+              id="consider-time"
+              value={considerTimeout}
+              onChange={handleConsiderTimeChange}
+              className="game-setting-select"
+            >
+              {[3, 4, 5, 6, 7, 8].map(time => (
+                <option key={time} value={time}>{time}s</option>
+              ))}
+            </select>
+          </div>
+          <div className="game-setting">
+            <label htmlFor="start-round">🎲 Starting 圈:</label>
+            <select
+              id="start-round"
+              value={startRound}
+              onChange={handleStartRoundChange}
+              className="game-setting-select"
+            >
+              <option value="east">東圈</option>
+              <option value="south">南圈</option>
+              <option value="west">西圈</option>
+              <option value="north">北圈</option>
+            </select>
+          </div>
+          <div className="game-setting">
+            <label htmlFor="start-wind">🀀 Starting 風:</label>
+            <select
+              id="start-wind"
+              value={startWind}
+              onChange={handleStartWindChange}
+              className="game-setting-select"
+            >
+              <option value="east">東風</option>
+              <option value="south">南風</option>
+              <option value="west">西風</option>
+              <option value="north">北風</option>
+            </select>
+          </div>
+          <div className="game-setting game-setting-checkbox">
+            <label htmlFor="debug-mode">
+              <input
+                type="checkbox"
+                id="debug-mode"
+                checked={debugMode}
+                onChange={(e) => onSetDebugMode && onSetDebugMode(e.target.checked)}
+                className="debug-mode-checkbox"
+              />
+              🐛 Debug Mode
+            </label>
+          </div>
         </div>
 
         {allSeated && isEastPlayer && (
-          <button className="start-button" onClick={onStartGame}>
+          <button className="start-button" onClick={() => onStartGame(startRound, startWind)}>
             🎮 START GAME
           </button>
         )}

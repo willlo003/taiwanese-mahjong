@@ -3,31 +3,33 @@ import { WinValidator } from './WinValidator.js';
 import { PhaseOne } from './PhaseOne.js';
 import { PhaseTwo } from './PhaseTwo.js';
 import { PhaseThree } from './PhaseThree.js';
+import {PlayerActionsHandler} from "./play_action/PlayerActionsHandler.js";
+import {PlayerClaimActionsHandler} from "./play_action/PlayerClaimActionsHandler.js";
 
 /**
  * StatusManager - Manages game state and status
  * Handles game initialization, state tracking, and coordinates between phases
  */
 export class StatusManager {
-  constructor(players, broadcastFn, considerTimeout = 5, debugMode = false) {
+  constructor(players, broadcastFn, considerTimeout = 5, debugMode = false, startRound = 'east', startWind = 'east', winds) {
     this.players = players;
     this.broadcast = broadcastFn;
     this.tileManager = new TileManager();
-    this.dealerIndex = 0; // 莊 (dealer) - starts at East (東)
-    this.currentPlayerIndex = 0; // Current turn
+    this.dealerIndex = winds.indexOf(startWind); // 莊 (dealer) - starts at East (東)
+    this.currentPlayerIndex = winds.indexOf(startWind); // Current turn
 
     // 圈/風 system for Taiwanese Mahjong
     // 圈 (round): east, south, west, north (東圈, 南圈, 西圈, 北圈)
     // 風 (wind): corresponds to dealer position (東風, 南風, 西風, 北風)
-    this.currentRound = 'east'; // 圈: east/south/west/north (東圈/南圈/西圈/北圈)
-    this.currentWind = 'east';  // 風: east/south/west/north (東風/南風/西風/北風)
-    this.roundWinds = ['east', 'south', 'west', 'north']; // Progression order
+    this.currentRound = startRound; // 圈: east/south/west/north (東圈/南圈/西圈/北圈)
+    this.currentWind = startWind;  // 風: east/south/west/north (東風/南風/西風/北風)
+    this.roundWinds = winds; // Progression order
 
     this.playerHands = new Map();
     this.discardPiles = new Map();
     this.melds = new Map(); // Store pong/gang/chow for each player
     this.revealedBonusTiles = new Map(); // Store revealed flower/season tiles
-    this.playerWinds = ['east', 'south', 'west', 'north']; // 東南西北
+    this.playerWinds = winds; // 東南西北
     this.gameState = 'waiting'; // waiting, flower_replacement, playing, ended
     this.gamePhase = 'waiting'; // waiting, flower_replacement, draw_discard
     this.lastDiscardedTile = null;
@@ -121,12 +123,19 @@ export class StatusManager {
     this.sendHandsToPlayers();
 
     // Start flower replacement phase (補花)
-    this.startFlowerReplacementPhase();
+    console.log('=============== Starting flower replacement phase (補花) ===============');
+
+    PhaseOne.startFlowerReplacementPhase(this);
+
+    // Set callback to be called when flower replacement completes
+    this.onFlowerReplacementComplete = () => {
+      console.log('=============== Starting discard phase ===============');
+      PhaseTwo.prepareNextTurn(this, this.players[this.dealerIndex], false);
+    };
   }
 
   // Reset game state for next game
   resetForNextGame() {
-    console.log('====================');
     console.log('[RESET] Resetting game state for next game...');
     console.log(`[RESET] Next dealer: ${this.players[this.dealerIndex].name} (position ${this.dealerIndex})`);
     console.log(`[RESET] Next round: ${this.currentRound}, Next wind: ${this.currentWind}`);
@@ -199,21 +208,20 @@ export class StatusManager {
     // DEBUG: Valid 天胡 winning hand (17 tiles)
     // Pattern: 5 sets + 1 pair = 東x3 + 南x3 + 西x3 + 北x3 + 中x3 + 發x2
     // This is a valid winning hand (大四喜 + 字一色)
-    const DEBUG_DEALER_TILES = [
+    const DEBUG_SOUTH_TILES = [
       { suit: 'wind', value: 'east' },    // 東 (set 1: pong)
       { suit: 'wind', value: 'east' },    // 東
       // { suit: 'wind', value: 'east' },    // 東
       { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
       { suit: 'wind', value: 'south' },   // 南
       // { suit: 'wind', value: 'south' },   // 南
-      { suit: 'wind', value: 'west' },    // 西 (set 3: pong)
-      { suit: 'wind', value: 'west' },    // 西
+      { suit: 'wind', value: 'north' },    // 西 (set 3: pong)
+      { suit: 'wind', value: 'north' },    // 西
       // { suit: 'wind', value: 'west' },    // 西
       { suit: 'wind', value: 'north' },   // 北 (set 4: pong)
       { suit: 'wind', value: 'north' },   // 北
       // { suit: 'wind', value: 'north' },   // 北
       { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
-      { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dot', value: 6 },
@@ -225,13 +233,15 @@ export class StatusManager {
       { suit: 'dot', value: 4 },
       { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 4 },  // 五筒
+      { suit: 'dragon', value: 'red' },   // 中
+
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
     // DEBUG: Valid winning hand for 西 player (16 tiles when dealer, 15 when not dealer)
     // Pattern: 5 sets + 1 single = 一筒x3 + 二筒x3 + 三筒x3 + 四筒x3 + 五筒x3 + 六筒x1
     // Waiting for 六筒 to complete the pair
-    const DEBUG_SOUTH_TILES = [
+    const DEBUG_DEALER_TILES = [
       { suit: 'dot', value: 1 },  // 一筒 (set 1: pong)
       { suit: 'dot', value: 1 },  // 一筒
       { suit: 'dot', value: 1 },  // 一筒
@@ -245,10 +255,10 @@ export class StatusManager {
       { suit: 'dot', value: 8 },  // 四筒
       { suit: 'dot', value: 8 },  // 四筒
       { suit: 'dot', value: 7 },  // 五筒 (set 5: pong)
-      { suit: 'dot', value: 7 },  // 五筒
+      { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 5 },  // 五筒
       { suit: 'dot', value: 6 },  // 六筒
-      { suit: 'dot', value: 6 },  // 六筒
+      { suit: 'dot', value: 7 },  // 六筒
     ];
 
     // Dealer (莊) gets 17 tiles, others get 16 (Taiwanese Mahjong)
@@ -326,7 +336,7 @@ export class StatusManager {
 
 
   // Start the flower replacement phase (補花) - delegates to PhaseOne
-  startFlowerReplacementPhase() {
+  startPhaseOne() {
     PhaseOne.startFlowerReplacementPhase(this);
   }
 
@@ -349,11 +359,11 @@ export class StatusManager {
 
   // Delegate player actions to PhaseTwo
   handlePlayerAction(playerId, action) {
-    PhaseTwo.handlePlayerAction(this, playerId, action);
+    PlayerActionsHandler.handlePlayerAction(this, playerId, action);
   }
 
   handlePlayerClaimAction(playerId, action) {
-    PhaseTwo.handlePlayerClaimAction(this, playerId, action);
+    PlayerClaimActionsHandler.handlePlayerClaimAction(this, playerId, action);
   }
 
 

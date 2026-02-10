@@ -11,12 +11,10 @@ export class PhaseOne {
    * @param {StatusManager} game - The game instance
    */
   static startFlowerReplacementPhase(game) {
-    console.log('=== Starting flower replacement phase (補花) ===');
     console.log('Dealer index:', game.dealerIndex);
     console.log('Players:', game.players.map(p => p.name));
 
     // Broadcast that we're in flower replacement phase
-    console.log('Broadcasting phase_changed: flower_replacement');
     game.broadcast({
       type: 'phase_changed',
       payload: {
@@ -30,8 +28,7 @@ export class PhaseOne {
     game.flowerReplacementRound = 0; // Track rounds to detect completion
 
     // Start the sequential flower replacement process
-    console.log('Calling processNextPlayerFlowerReplacement...');
-    PhaseOne.processNextPlayerFlowerReplacement(game);
+    this.processNextPlayerFlowerReplacement(game);
   }
 
   /**
@@ -39,19 +36,14 @@ export class PhaseOne {
    * @param {StatusManager} game - The game instance
    */
   static processNextPlayerFlowerReplacement(game) {
-    console.log('=== processNextPlayerFlowerReplacement ===');
-    console.log('flowerReplacementPlayerIndex:', game.flowerReplacementPlayerIndex);
-    console.log('flowerReplacementRound:', game.flowerReplacementRound);
-
+    console.log('=============== processNextPlayerFlowerReplacement ===============');
     const playerIndex = (game.dealerIndex + game.flowerReplacementPlayerIndex) % game.players.length;
     const player = game.players[playerIndex];
     const hand = game.playerHands.get(player.id);
 
-    console.log(`Checking player ${player.name} (index ${playerIndex}), hand size: ${hand.length}`);
-
     // Find all bonus tiles in hand
     const bonusTiles = hand.filter(tile => GameUtils.isBonusTile(tile));
-    console.log(`Found ${bonusTiles.length} bonus tiles:`, bonusTiles.map(t => `${t.type}-${t.value}`));
+    console.log(`Found ${bonusTiles.length} bonus tiles:`, bonusTiles.map(t => `${t.type}-${t.value} for ${player.name}`));
 
     if (bonusTiles.length > 0) {
       // Reset round counter since we found flowers
@@ -150,7 +142,7 @@ export class PhaseOne {
    * @param {StatusManager} game - The game instance
    */
   static completeFlowerReplacementPhase(game) {
-    console.log('=== Flower replacement phase complete ===');
+    console.log('=============== Flower replacement phase complete ===============');
 
     // Set game phase to draw_discard
     game.gamePhase = 'draw_discard';
@@ -164,51 +156,10 @@ export class PhaseOne {
       }
     });
 
-    // Dealer (莊) goes first - they already have 17 tiles
-    game.currentPlayerIndex = game.dealerIndex;
-    const dealer = game.players[game.dealerIndex];
-    const dealerHand = game.playerHands.get(dealer.id);
-
-    console.log(`[START] Dealer ${dealer.name} starts with ${dealerHand.length} tiles`);
-
-    // For 天胡 (heavenly hand), don't set drawnTile since there's no "drawn" tile
-    // The dealer starts with 17 tiles, so no specific tile should be highlighted
-    game.drawnTile = null;
-    console.log(`[START] drawnTile set to null for dealer's first turn (天胡 has no drawn tile)`);
-
-    // Use standardized function to check for 自摸 (天胡) and 槓 options
-    const options = PhaseTwo.checkSelfDrawOptions(game, dealer.id);
-
-    if (options.canSelfDrawWin) {
-      console.log(`[START] 🎉 Dealer ${dealer.name} has 天胡 (Heavenly Hand)!`);
+    // Call the callback to start dealer's first turn
+    // This is handled by StatusManager.dealTiles
+    if (game.onFlowerReplacementComplete) {
+      game.onFlowerReplacementComplete();
     }
-    if (options.canSelfGang) {
-      console.log(`[START] 🎴 Dealer ${dealer.name} can self-gang with ${options.selfGangCombinations.length} options`);
-    }
-
-    // Send dealer_first_turn notification to the dealer
-    dealer.ws.send(JSON.stringify({
-      type: 'dealer_first_turn',
-      payload: {
-        hand: dealerHand,
-        canSelfDrawWin: options.canSelfDrawWin,
-        selfDrawWinCombinations: options.selfDrawWinCombinations,
-        canSelfGang: options.canSelfGang,
-        selfGangCombinations: options.selfGangCombinations,
-        tilesRemaining: game.tileManager.getRemainingCount()
-      }
-    }));
-
-    // Notify all players about turn change
-    game.broadcast({
-      type: 'turn_changed',
-      payload: {
-        currentPlayer: dealer.id,
-        mustDiscard: true // Dealer must discard one of their 17 tiles
-      }
-    });
-
-    // Start turn timer for dealer's first turn
-    PhaseTwo.startTurnTimer(game, dealer.id);
   }
 }
