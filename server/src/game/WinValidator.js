@@ -28,6 +28,7 @@ export class WinValidator {
       console.log(`[WIN_VALIDATOR] WIN! Normal pattern`);
       return normalWin;
     }
+    console.log("numRevealedMelds:", numRevealedMelds);
 
     if (numRevealedMelds === 0) {
       // Check Pattern 2: 嚦咕嚦咕 (1 pong/kong + 7 pairs)
@@ -89,6 +90,8 @@ export class WinValidator {
   static checkLiguLiguWithMelds(handTiles, numRevealedMelds) {
     // console.log(`[WIN_VALIDATOR] 嚦咕嚦咕 pattern: ${numRevealedMelds} revealed melds`);
 
+    console.log("handTiles:", handTiles);
+
     // We need at least 1 revealed or concealed pong/kong
     // If numRevealedMelds >= 1, we already have the required pong/kong
     // If numRevealedMelds === 0, we need 1 pong/kong from hand
@@ -117,23 +120,21 @@ export class WinValidator {
     // With revealed melds: each revealed meld = 3 tiles
     // Remaining tiles should form pairs
 
-    if (numRevealedMelds >= 1) {
-      // Need 1 pong from hand + remaining tiles form pairs
-      if (hasPongInHand) {
-        // Check if we can form 1 pong + 7 pairs total
-        // Try each possible pong
-        for (const [tileKey, count] of Object.entries(tileCounts)) {
-          if (count >= 3) {
-            const remainingCounts = { ...tileCounts };
-            remainingCounts[tileKey] -= 3;
+    // Need 1 pong from hand + remaining tiles form pairs
+    if (hasPongInHand) {
+      // Check if we can form 1 pong + 7 pairs total
+      // Try each possible pong
+      for (const [tileKey, count] of Object.entries(tileCounts)) {
+        if (count >= 3) {
+          const remainingCounts = { ...tileCounts };
+          remainingCounts[tileKey] -= 3;
 
-            // Check if remaining tiles form exactly 7 pairs
-            const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
-            const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
+          // Check if remaining tiles form exactly 7 pairs
+          const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
+          const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
 
-            if (allPairs && remainingPairs === 7) {
-              return { isWin: true, pattern: 'ligu_ligu', score: 4 };
-            }
+          if (allPairs && remainingPairs === 7) {
+            return { isWin: true, pattern: 'ligu_ligu', score: 4 };
           }
         }
       }

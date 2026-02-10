@@ -1695,11 +1695,14 @@ export class PhaseTwo {
    * Move to next turn
    */
   static prepareNextTurn(game, nextPlayer, shouldDraw) {
-    // game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 4;
-    // const nextPlayer = game.players[game.currentPlayerIndex];
     console.log(`=======================================================================================`);
 
     console.log(`[TURN] player: ${nextPlayer.name}'s turn, shouldDraw: ${shouldDraw}`);
+
+    const nextPlayerIndex = game.players.indexOf(nextPlayer);
+    if (nextPlayerIndex !== game.currentPlayerIndex) {
+      game.currentPlayerIndex = nextPlayerIndex;
+    }
 
     if (shouldDraw) {
       game.playerHasDrawn.set(nextPlayer.id, false);
