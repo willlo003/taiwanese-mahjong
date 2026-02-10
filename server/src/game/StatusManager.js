@@ -11,25 +11,25 @@ import {PlayerClaimActionsHandler} from "./play_action/PlayerClaimActionsHandler
  * Handles game initialization, state tracking, and coordinates between phases
  */
 export class StatusManager {
-  constructor(players, broadcastFn, considerTimeout = 5, debugMode = false) {
+  constructor(players, broadcastFn, considerTimeout = 5, debugMode = false, startRound = 'east', startWind = 'east', winds) {
     this.players = players;
     this.broadcast = broadcastFn;
     this.tileManager = new TileManager();
-    this.dealerIndex = 0; // 莊 (dealer) - starts at East (東)
-    this.currentPlayerIndex = 0; // Current turn
+    this.dealerIndex = winds.indexOf(startWind); // 莊 (dealer) - starts at East (東)
+    this.currentPlayerIndex = winds.indexOf(startWind); // Current turn
 
     // 圈/風 system for Taiwanese Mahjong
     // 圈 (round): east, south, west, north (東圈, 南圈, 西圈, 北圈)
     // 風 (wind): corresponds to dealer position (東風, 南風, 西風, 北風)
-    this.currentRound = 'east'; // 圈: east/south/west/north (東圈/南圈/西圈/北圈)
-    this.currentWind = 'east';  // 風: east/south/west/north (東風/南風/西風/北風)
-    this.roundWinds = ['east', 'south', 'west', 'north']; // Progression order
+    this.currentRound = startRound; // 圈: east/south/west/north (東圈/南圈/西圈/北圈)
+    this.currentWind = startWind;  // 風: east/south/west/north (東風/南風/西風/北風)
+    this.roundWinds = winds; // Progression order
 
     this.playerHands = new Map();
     this.discardPiles = new Map();
     this.melds = new Map(); // Store pong/gang/chow for each player
     this.revealedBonusTiles = new Map(); // Store revealed flower/season tiles
-    this.playerWinds = ['east', 'south', 'west', 'north']; // 東南西北
+    this.playerWinds = winds; // 東南西北
     this.gameState = 'waiting'; // waiting, flower_replacement, playing, ended
     this.gamePhase = 'waiting'; // waiting, flower_replacement, draw_discard
     this.lastDiscardedTile = null;

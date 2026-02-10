@@ -8,6 +8,8 @@ export class GameManager {
     this.maxPlayers = 4;
     this.considerTimeout = 5; // Default 5 seconds for turn timer (configurable 3-8)
     this.debugMode = false; // Debug mode for specific tile dealing
+    this.startRound = 'east'; // Starting round (圈)
+    this.startWind = 'east'; // Starting wind (風)
   }
 
   handleMessage(ws, data) {
@@ -21,7 +23,7 @@ export class GameManager {
         this.handleRandomSeats(ws);
         break;
       case 'start_game':
-        this.handleStartGame(ws);
+        this.handleStartGame(ws, payload);
         break;
       case 'leave_game':
         this.handleLeaveGame(ws);
@@ -40,6 +42,12 @@ export class GameManager {
         break;
       case 'set_debug_mode':
         this.handleSetDebugMode(ws, payload);
+        break;
+      case 'set_start_round':
+        this.handleSetStartRound(ws, payload);
+        break;
+      case 'set_start_wind':
+        this.handleSetStartWind(ws, payload);
         break;
       default:
         ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
@@ -198,7 +206,7 @@ export class GameManager {
     console.log('Seats shuffled randomly');
   }
 
-  handleStartGame(ws) {
+  handleStartGame(ws, payload = {}) {
     const player = this.players.get(ws);
     if (!player) return;
 
@@ -214,7 +222,8 @@ export class GameManager {
       return;
     }
 
-    this.startGame();
+    // Use the stored startRound and startWind values
+    this.startGame(this.startRound, this.startWind);
   }
 
   handleAction(ws, payload) {
@@ -278,6 +287,60 @@ export class GameManager {
 
     // Broadcast the new setting to all players
     this.broadcastPlayerList();
+  }
+
+  handleSetStartRound(ws, payload) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    // Only allow if game hasn't started
+    if (this.game) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Cannot change settings during game' }));
+      return;
+    }
+
+    const { round } = payload;
+    const validRounds = ['east', 'south', 'west', 'north'];
+    if (!validRounds.includes(round)) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid round value' }));
+      return;
+    }
+
+    this.startRound = round;
+    console.log(`[LOBBY] Starting round set to ${round} by ${player.name}`);
+
+    // Broadcast the new setting to all players
+    this.broadcast({
+      type: 'start_round_updated',
+      payload: { startRound: this.startRound }
+    });
+  }
+
+  handleSetStartWind(ws, payload) {
+    const player = this.players.get(ws);
+    if (!player) return;
+
+    // Only allow if game hasn't started
+    if (this.game) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Cannot change settings during game' }));
+      return;
+    }
+
+    const { wind } = payload;
+    const validWinds = ['east', 'south', 'west', 'north'];
+    if (!validWinds.includes(wind)) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid wind value' }));
+      return;
+    }
+
+    this.startWind = wind;
+    console.log(`[LOBBY] Starting wind set to ${wind} by ${player.name}`);
+
+    // Broadcast the new setting to all players
+    this.broadcast({
+      type: 'start_wind_updated',
+      payload: { startWind: this.startWind }
+    });
   }
 
   handleDisconnect(ws) {
@@ -354,8 +417,8 @@ export class GameManager {
     return seatedPlayers.length === 4 && seatedPlayers.every(p => p.ready);
   }
 
-  startGame() {
-    console.log('Starting game with 4 players...');
+  startGame(startRound = 'east', startWind = 'east') {
+    console.log(`Starting game with 4 players... (Starting: ${startRound}圈${startWind}風)`);
 
     // Get all players and sort by position (0=東, 1=南, 2=西, 3=北)
     // This ensures dealerIndex=0 corresponds to position 0 (東)
@@ -363,7 +426,8 @@ export class GameManager {
     const playerList = realPlayers.sort((a, b) => a.position - b.position);
     console.log('Player order:', playerList.map(p => `${p.name}(pos:${p.position}, id:${p.id})`));
 
-    this.game = new StatusManager(playerList, this.broadcast.bind(this), this.considerTimeout, this.debugMode);
+    const winds = ['east', 'south', 'west', 'north'];
+    this.game = new StatusManager(playerList, this.broadcast.bind(this), this.considerTimeout, this.debugMode, startRound, startWind, winds);
     this.game.start();
   }
 
@@ -391,7 +455,9 @@ export class GameManager {
       payload: {
         players: playerList,
         considerTimeout: this.considerTimeout,
-        debugMode: this.debugMode
+        debugMode: this.debugMode,
+        startRound: this.startRound,
+        startWind: this.startWind
       }
     });
   }

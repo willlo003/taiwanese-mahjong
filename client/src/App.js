@@ -53,6 +53,8 @@ function App() {
   const [turnTimerPlayerId, setTurnTimerPlayerId] = useState(null); // Player whose turn timer is active
   const [turnTimerEnd, setTurnTimerEnd] = useState(null); // When the turn timer ends (timestamp)
   const [debugMode, setDebugMode] = useState(false); // Debug mode for specific tile dealing
+  const [startRound, setStartRound] = useState('east'); // Starting round (圈)
+  const [startWind, setStartWind] = useState('east'); // Starting wind (風)
 
   const { sendMessage, isConnected } = useWebSocket({
     onMessage: handleWebSocketMessage
@@ -78,10 +80,26 @@ function App() {
         if (data.payload.debugMode !== undefined) {
           setDebugMode(data.payload.debugMode);
         }
+        // Update start round if provided
+        if (data.payload.startRound !== undefined) {
+          setStartRound(data.payload.startRound);
+        }
+        // Update start wind if provided
+        if (data.payload.startWind !== undefined) {
+          setStartWind(data.payload.startWind);
+        }
         break;
 
       case 'consider_time_updated':
         setConsiderTimeout(data.payload.considerTimeout);
+        break;
+
+      case 'start_round_updated':
+        setStartRound(data.payload.startRound);
+        break;
+
+      case 'start_wind_updated':
+        setStartWind(data.payload.startWind);
         break;
 
       case 'game_started':
@@ -586,8 +604,8 @@ function App() {
     sendMessage({ type: 'select_seat', payload: { position } });
   };
 
-  const handleStartGame = () => {
-    sendMessage({ type: 'start_game', payload: {} });
+  const handleStartGame = (startRound = 'east', startWind = 'east') => {
+    sendMessage({ type: 'start_game', payload: { startRound, startWind } });
   };
 
   const handleDiscard = (tile) => {
@@ -699,6 +717,14 @@ function App() {
     sendMessage({ type: 'set_debug_mode', payload: { enabled } });
   };
 
+  const handleSetStartRound = (round) => {
+    sendMessage({ type: 'set_start_round', payload: { round } });
+  };
+
+  const handleSetStartWind = (wind) => {
+    sendMessage({ type: 'set_start_wind', payload: { wind } });
+  };
+
   const handleResultReady = () => {
     // Send ready message to server
     sendMessage({ type: 'action', payload: { type: 'result_ready' } });
@@ -758,6 +784,10 @@ function App() {
           onSetConsiderTime={handleSetConsiderTime}
           debugMode={debugMode}
           onSetDebugMode={handleSetDebugMode}
+          startRound={startRound}
+          onSetStartRound={handleSetStartRound}
+          startWind={startWind}
+          onSetStartWind={handleSetStartWind}
         />
       )}
 
