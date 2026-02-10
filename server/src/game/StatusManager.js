@@ -352,6 +352,10 @@ export class StatusManager {
     PhaseTwo.handlePlayerAction(this, playerId, action);
   }
 
+  handlePlayerClaimAction(playerId, action) {
+    PhaseTwo.handlePlayerClaimAction(this, playerId, action);
+  }
+
 
   // Handle player ready for next game
   handleResultReady(playerId) {

@@ -114,76 +114,11 @@ export class PhaseTwo {
     const player = game.players.find(p => p.id === playerId);
     if (!player) return;
 
-    const playerIndex = game.players.indexOf(player);
-
-    // Special handling for 'hu' action
-    // If it's the player's turn and claim window is closed, treat as self-draw win (自摸)
-    // If claim window is open, treat as claiming win from discard (出沖)
-    if (action.type === 'hu') {
-      const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
-
-      if (isSelfDraw) {
-        // Self-draw win attempt - handle immediately
-        PhaseTwo.handleHu(game, playerId, action.combination);
-        return;
-      } else {
-        // Win by claiming discard - register the claim with combination
-        const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles, action.combination);
-        if (registered) {
-          player.ws.send(JSON.stringify({
-            type: 'claim_registered',
-            payload: { claimType: action.type }
-          }));
-        }
-        return;
-      }
-    }
-
-    // Other claim actions can be done by any player during claim window (before turn check)
-    const claimActions = ['pong', 'gang', 'chow', 'shang'];
-
-    if (claimActions.includes(action.type)) {
-      // Register the claim (will be resolved after freeze period)
-      const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles);
-      if (registered) {
-        player.ws.send(JSON.stringify({
-          type: 'claim_registered',
-          payload: { claimType: action.type }
-        }));
-      }
-      return;
-    }
-
-    // Handle pass action - player explicitly passes on claiming
-    if (action.type === 'pass') {
-      PhaseTwo.handlePass(game, playerId);
-      return;
-    }
-
-    // Handle cancel claim action - player cancels their previous claim
-    if (action.type === 'cancel_claim') {
-      PhaseTwo.handleCancelClaim(game, playerId);
-      return;
-    }
-
-    // Handle result_ready action - player is ready for next game (Phase Three)
     if (action.type === 'result_ready') {
       game.handleResultReady(playerId);
       return;
     }
-
-    // Handle self-gang action - player performs 暗槓 or 碰上槓 during their turn
-    if (action.type === 'self_gang') {
-      PhaseTwo.handleSelfGang(game, playerId, action.combinations);
-      return;
-    }
-
-    // Handle ting (聽) action - player declares ready hand
-    if (action.type === 'ting') {
-      PhaseTwo.handleTing(game, playerId, action.tile);
-      return;
-    }
-
+    const playerIndex = game.players.indexOf(player);
     // Verify it's the player's turn for non-claim actions
     if (playerIndex !== game.currentPlayerIndex) {
       player.ws.send(JSON.stringify({
@@ -194,12 +129,49 @@ export class PhaseTwo {
     }
 
     switch (action.type) {
-      case 'draw':
-        PhaseTwo.handleDraw(game, playerId);
-        break;
       case 'discard':
         PhaseTwo.handleDiscard(game, playerId, action.tile);
-        break;
+        return;
+      case 'ting':
+        PhaseTwo.handleTing(game, playerId, action.tile);
+        return;
+      case 'self_gang':
+        PhaseTwo.handleSelfGang(game, playerId, action.tile);
+        return;
+      case 'cancel_claim':
+        PhaseTwo.handleCancelClaim(game, playerId);
+        return;
+      case 'pass':
+        PhaseTwo.handlePass(game, playerId);
+        return;
+      case 'pong':
+      case 'gang':
+      case 'chow':
+      case 'shang':
+        const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles);
+        if (registered) {
+          player.ws.send(JSON.stringify({
+            type: 'claim_registered',
+            payload: { claimType: action.type }
+          }));
+        }
+        return;
+      case 'hu':
+        const isSelfDraw = playerIndex === game.currentPlayerIndex && !game.claimWindowOpen;
+        if (isSelfDraw) {
+          // Self-draw win attempt - handle immediately
+          PhaseTwo.handleHu(game, playerId, action.combination);
+          return;
+        } else {
+          const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles, action.combination);
+          if (registered) {
+            player.ws.send(JSON.stringify({
+              type: 'claim_registered',
+              payload: { claimType: action.type }
+            }));
+          }
+          return;
+        }
       default:
         player.ws.send(JSON.stringify({
           type: 'error',
@@ -208,104 +180,35 @@ export class PhaseTwo {
     }
   }
 
-  /**
-   * Handle draw action
-   * @param {StatusManager} game - The game instance
-   * @param {string} playerId - The player's ID
-   */
-  static handleDraw(game, playerId) {
+  static handlePlayerClaimAction(game, playerId, action) {
     const player = game.players.find(p => p.id === playerId);
-    const playerIndex = game.players.indexOf(player);
+    if (!player) return;
 
-    // Verify it's this player's turn
-    if (playerIndex !== game.currentPlayerIndex) {
-      console.log(`[DRAW] Not ${player?.name}'s turn`);
-      return;
-    }
-
-    // Check if player has already drawn
-    if (game.playerHasDrawn.get(playerId)) {
-      console.log(`[DRAW] ${player?.name} has already drawn this turn`);
-      return;
-    }
-
-    console.log(`[DRAW] ${player?.name} is drawing a tile...`);
-
-    // Use standardized draw function
-    const drawResult = PhaseTwo.drawTileWithBonusCheck(game, playerId, 'DRAW');
-
-    if (!drawResult) {
-      // Game ended in draw (no more tiles)
-      return;
-    }
-
-    const { tile, bonusTilesDrawn, canSelfDrawWin, selfDrawWinCombinations, canSelfGang, selfGangCombinations } = drawResult;
-
-    // Mark that player has drawn
-    game.playerHasDrawn.set(playerId, true);
-
-    // Store the drawn tile for reference (used for 自摸 win)
-    game.drawnTile = tile;
-    console.log(`[DRAW] Set game.drawnTile to: ${tile.suit}-${tile.value}`);
-
-    const hand = game.playerHands.get(playerId);
-
-    // If we drew bonus tiles, notify everyone
-    if (bonusTilesDrawn.length > 0) {
-      const revealed = game.revealedBonusTiles.get(playerId);
-
-      // Notify the player about the flower replacement
-      player.ws.send(JSON.stringify({
-        type: 'draw_flower_replaced',
-        payload: {
-          bonusTiles: bonusTilesDrawn,
-          finalTile: tile,
-          hand: hand,
-          revealedBonusTiles: revealed,
-          tilesRemaining: game.tileManager.getRemainingCount(),
-          canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
+    switch (action.type) {
+      case 'cancel_claim':
+        PhaseTwo.handleCancelClaim(game, playerId);
+        return;
+      case 'pass':
+        PhaseTwo.handlePass(game, playerId);
+        return;
+      case 'pong':
+      case 'gang':
+      case 'chow':
+      case 'shang':
+      case 'hu':
+        const registered = PhaseTwo.registerClaim(game, playerId, action.type, action.tiles, action.combination);
+        if (registered) {
+          player.ws.send(JSON.stringify({
+            type: 'claim_registered',
+            payload: { claimType: action.type }
+          }));
         }
-      }));
-
-      // Notify others about the flower replacement
-      game.broadcastToOthers(playerId, {
-        type: 'player_draw_flower_replaced',
-        payload: {
-          playerId: playerId,
-          playerName: player.name,
-          bonusTiles: bonusTilesDrawn,
-          revealedBonusTiles: revealed,
-          tilesRemaining: game.tileManager.getRemainingCount(),
-          handSize: hand.length
-        }
-      });
-    } else {
-      // Normal draw - send updated hand to the player
-      player.ws.send(JSON.stringify({
-        type: 'tile_drawn',
-        payload: {
-          tile: tile,
-          hand: hand,
-          tilesRemaining: game.tileManager.getRemainingCount(),
-          canSelfDrawWin: canSelfDrawWin,
-          selfDrawWinCombinations: selfDrawWinCombinations,
-          canSelfGang: canSelfGang,
-          selfGangCombinations: selfGangCombinations
-        }
-      }));
-
-      // Notify others that a tile was drawn (without showing the tile)
-      game.broadcastToOthers(playerId, {
-        type: 'player_drew',
-        payload: {
-          playerId: playerId,
-          tilesRemaining: game.tileManager.getRemainingCount(),
-          handSize: hand.length
-        }
-      });
+        return;
+      default:
+        player.ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Unknown action'
+        }));
     }
   }
 

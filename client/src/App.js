@@ -601,12 +601,23 @@ function App() {
   };
 
   const handleHu = (combinationOrClaim = null) => {
+    console.log('[CLIENT] Sending hu action with combinationOrClaim:', combinationOrClaim);
+    // combinationOrClaim can be:
+    // 1. A combination object from SelfDrawWinPopup (for 自摸)
+    // 2. A claim object from ClaimPopup (for 出沖) with { type: 'hu', tiles, combination }
+    const combination = combinationOrClaim?.type === 'hu' ? combinationOrClaim.combination : combinationOrClaim;
+    sendMessage({ type: 'claim_action', payload: { type: 'hu', combination } });
+  };
+
+  const handleSelfHu = (combinationOrClaim = null) => {
+    console.log('[CLIENT] Sending hu action with combinationOrClaim:', combinationOrClaim);
     // combinationOrClaim can be:
     // 1. A combination object from SelfDrawWinPopup (for 自摸)
     // 2. A claim object from ClaimPopup (for 出沖) with { type: 'hu', tiles, combination }
     const combination = combinationOrClaim?.type === 'hu' ? combinationOrClaim.combination : combinationOrClaim;
     sendMessage({ type: 'action', payload: { type: 'hu', combination } });
   };
+
 
   const handleSelfGang = (combinations) => {
     console.log('[CLIENT] Sending self-gang action with combinations:', combinations);
@@ -627,14 +638,14 @@ function App() {
 
   // Handle claim with selected claim data
   const handleClaim = (claimData) => {
-    sendMessage({ type: 'action', payload: { type: claimData.type, tiles: claimData } });
+    sendMessage({ type: 'claim_action', payload: { type: claimData.type, tiles: claimData } });
   };
 
   const handlePong = (claimData) => {
     if (claimData) {
       handleClaim(claimData);
     } else {
-      sendMessage({ type: 'action', payload: { type: 'pong' } });
+      sendMessage({ type: 'claim_action', payload: { type: 'pong' } });
     }
   };
 
@@ -642,7 +653,7 @@ function App() {
     if (claimData) {
       handleClaim(claimData);
     } else {
-      sendMessage({ type: 'action', payload: { type: 'gang' } });
+      sendMessage({ type: 'claim_action', payload: { type: 'gang' } });
     }
   };
 
@@ -650,7 +661,7 @@ function App() {
     if (claimData) {
       handleClaim({ ...claimData, type: 'chow' });
     } else {
-      sendMessage({ type: 'action', payload: { type: 'chow' } });
+      sendMessage({ type: 'claim_action', payload: { type: 'chow' } });
     }
   };
 
@@ -658,7 +669,7 @@ function App() {
     if (claimData) {
       handleClaim({ ...claimData, type: 'shang' });
     } else {
-      sendMessage({ type: 'action', payload: { type: 'shang' } });
+      sendMessage({ type: 'claim_action', payload: { type: 'shang' } });
     }
   };
 
@@ -667,12 +678,12 @@ function App() {
   };
 
   const handlePass = () => {
-    sendMessage({ type: 'action', payload: { type: 'pass' } });
+    sendMessage({ type: 'claim_action', payload: { type: 'pass' } });
     setClaimOptions(null);
   };
 
   const handleCancelClaim = () => {
-    sendMessage({ type: 'action', payload: { type: 'cancel_claim' } });
+    sendMessage({ type: 'claim_action', payload: { type: 'cancel_claim' } });
     setPendingClaim(null);
   };
 
@@ -762,6 +773,7 @@ function App() {
             tilesRemaining={tilesRemaining}
             onDiscard={handleDiscard}
             onHu={handleHu}
+            onSelfHu={handleSelfHu}
             onPong={handlePong}
             onGang={handleGang}
             onChow={handleChow}

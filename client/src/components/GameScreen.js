@@ -12,6 +12,7 @@ function GameScreen({
   tilesRemaining,
   onDiscard,
   onHu,
+  onSelfHu,
   onPong,
   onGang,
   onChow,
@@ -845,7 +846,7 @@ function GameScreen({
                   setShowSelfDrawWinPopup(true);
                 } else {
                   // Direct win
-                  onHu();
+                  onSelfHu();
                 }
               }}
               disabled={!canSelfDrawWin}
@@ -896,7 +897,7 @@ function GameScreen({
           drawnTile={drawnTile}
           onConfirm={() => {
             setShowSelfDrawWinPopup(false);
-            onHu();
+            onSelfHu();
           }}
           onCancel={() => setShowSelfDrawWinPopup(false)}
         />

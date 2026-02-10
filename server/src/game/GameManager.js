@@ -32,6 +32,9 @@ export class GameManager {
       case 'action':
         this.handleAction(ws, payload);
         break;
+      case 'claim_action':
+        this.handleClaimAction(ws, payload);
+        break;
       case 'set_consider_time':
         this.handleSetConsiderTime(ws, payload);
         break;
@@ -219,6 +222,13 @@ export class GameManager {
     if (!player || !this.game) return;
 
     this.game.handlePlayerAction(player.id, payload);
+  }
+
+  handleClaimAction(ws, payload) {
+    const player = this.players.get(ws);
+    if (!player || !this.game) return;
+
+    this.game.handlePlayerClaimAction(player.id, payload);
   }
 
   handleSetConsiderTime(ws, payload) {
