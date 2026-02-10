@@ -3,6 +3,8 @@ import { WinValidator } from './WinValidator.js';
 import { PhaseOne } from './PhaseOne.js';
 import { PhaseTwo } from './PhaseTwo.js';
 import { PhaseThree } from './PhaseThree.js';
+import {PlayerActionsHandler} from "./play_action/PlayerActionsHandler.js";
+import {PlayerClaimActionsHandler} from "./play_action/PlayerClaimActionsHandler.js";
 
 /**
  * StatusManager - Manages game state and status
@@ -353,11 +355,11 @@ export class StatusManager {
 
   // Delegate player actions to PhaseTwo
   handlePlayerAction(playerId, action) {
-    PhaseTwo.handlePlayerAction(this, playerId, action);
+    PlayerActionsHandler.handlePlayerAction(this, playerId, action);
   }
 
   handlePlayerClaimAction(playerId, action) {
-    PhaseTwo.handlePlayerClaimAction(this, playerId, action);
+    PlayerClaimActionsHandler.handlePlayerClaimAction(this, playerId, action);
   }
 
 

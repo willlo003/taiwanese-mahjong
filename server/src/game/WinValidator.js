@@ -7,31 +7,21 @@ export class WinValidator {
    * @returns {Object} { isWin: boolean, pattern: string|null, score: number }
    */
   static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile = null) {
-    // Taiwanese Mahjong has 2 winning patterns (bonus tiles don't count):
-    // 1. Normal: 5 sets + 1 pair (revealed melds reduce needed sets from 5)
-    // 2. 嚦咕嚦咕: 1 pong/kong + 7 pairs (revealed melds reduce needed sets from 1)
 
-    // console.log(`[WIN_VALIDATOR] Checking hand with ${handTiles.length} tiles, ${numRevealedMelds} revealed melds`);
-    // console.log(`[WIN_VALIDATOR] Hand tiles:`, handTiles.map(t => `${t.suit}-${t.value}`).join(', '));
-
-    // Filter out bonus tiles (they don't count towards winning patterns)
     const nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
     if (lastTile) {
-      // console.log(`[WIN_VALIDATOR] Last tiles:`, `${lastTile.suit}-${lastTile.value}`);
-      nonBonusTiles.push(lastTile)
+      if (!nonBonusTiles.includes(lastTile)) {
+        nonBonusTiles.push(lastTile)
+      }
     }
-    // console.log(`[WIN_VALIDATOR] Non-bonus tiles: ${nonBonusTiles.length}`);
 
-    // Check Pattern 1: Normal win (5 sets + 1 pair)
     const normalWin = this.checkNormalWinWithMelds(nonBonusTiles, numRevealedMelds);
     if (normalWin.isWin) {
       console.log(`[WIN_VALIDATOR] WIN! Normal pattern`);
       return normalWin;
     }
-    console.log("numRevealedMelds:", numRevealedMelds);
 
     if (numRevealedMelds === 0) {
-      // Check Pattern 2: 嚦咕嚦咕 (1 pong/kong + 7 pairs)
       const liguligu = this.checkLiguLiguWithMelds(nonBonusTiles, numRevealedMelds);
       if (liguligu.isWin) {
         console.log(`[WIN_VALIDATOR] WIN! Ligu Ligu pattern`);
@@ -89,8 +79,6 @@ export class WinValidator {
    */
   static checkLiguLiguWithMelds(handTiles, numRevealedMelds) {
     // console.log(`[WIN_VALIDATOR] 嚦咕嚦咕 pattern: ${numRevealedMelds} revealed melds`);
-
-    console.log("handTiles:", handTiles);
 
     // We need at least 1 revealed or concealed pong/kong
     // If numRevealedMelds >= 1, we already have the required pong/kong
@@ -356,6 +344,7 @@ export class WinValidator {
    * Find all normal win combinations (5 sets + 1 pair)
    */
   static findNormalWinCombinations(handTiles, numRevealedMelds, lastTile) {
+    console.log(`normal win combinations handSize ${handTiles.length}, lastTile ${lastTile}`);
     const combinations = [];
     const neededSets = 5 - numRevealedMelds;
     const tileCounts = this.countTiles(handTiles);
@@ -512,102 +501,61 @@ export class WinValidator {
    * Find all 嚦咕嚦咕 combinations (1 pong/kong + 7 pairs)
    */
   static findLiguLiguCombinations(handTiles, numRevealedMelds, lastTile) {
+    console.log(`ligu win combinations handSize ${handTiles.length}, lastTile ${lastTile}`);
     const combinations = [];
     const tileCounts = this.countTiles(handTiles);
 
-    if (numRevealedMelds >= 1) {
-      // Already have pong/kong from revealed melds
-      // Check if all hand tiles form pairs
-      const allPairs = Object.values(tileCounts).every(c => c === 0 || c === 2);
-      const pairCount = Object.values(tileCounts).filter(c => c === 2).length;
+    // Need 1 pong from hand + 7 pairs total
+    for (const [tileKey, count] of Object.entries(tileCounts)) {
+      if (count >= 3) {
+        const remainingCounts = { ...tileCounts };
+        remainingCounts[tileKey] -= 3;
 
-      if (allPairs && pairCount === 7) {
-        // Find which pair contains the last tile
-        let displayTiles = [];
-        if (lastTile) {
-          const lastKey = this.makeTileKey(lastTile.suit, lastTile.value);
-          if (tileCounts[lastKey] === 2) {
+        const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
+        const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
+
+        if (allPairs && remainingPairs === 7) {
+          const pongTile = this.parseTileKey(tileKey);
+          const isLastTileInPong = lastTile &&
+            lastTile.suit === pongTile.suit &&
+            lastTile.value === pongTile.value;
+
+          // Get display tiles based on what the last tile completes
+          let displayTiles = [];
+          const pongTiles = handTiles.filter(t =>
+            t.suit === pongTile.suit && t.value === pongTile.value
+          ).slice(0, 3);
+
+          if (isLastTileInPong) {
+            displayTiles = pongTiles;
+          } else if (lastTile) {
             displayTiles = handTiles.filter(t =>
               t.suit === lastTile.suit && t.value === lastTile.value
             ).slice(0, 2);
           }
-        }
 
-        // Extract all pairs as sets
-        const pairs = [];
-        const usedIds = new Set();
-        for (const [key, count] of Object.entries(tileCounts)) {
-          if (count === 2) {
-            const parsed = this.parseTileKey(key);
-            const pairTiles = handTiles.filter(t =>
-              t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
-            ).slice(0, 2);
-            pairTiles.forEach(t => usedIds.add(t.id));
-            pairs.push({ type: 'pair', tiles: pairTiles });
-          }
-        }
-
-        combinations.push({
-          pattern: 'ligu_ligu',
-          lastTileRole: 'pair',
-          displayTiles: displayTiles,
-          sets: [],
-          pairs: pairs
-        });
-      }
-    } else {
-      // Need 1 pong from hand + 7 pairs total
-      for (const [tileKey, count] of Object.entries(tileCounts)) {
-        if (count >= 3) {
-          const remainingCounts = { ...tileCounts };
-          remainingCounts[tileKey] -= 3;
-
-          const remainingPairs = Object.values(remainingCounts).filter(c => c === 2).length;
-          const allPairs = Object.values(remainingCounts).every(c => c === 0 || c === 2);
-
-          if (allPairs && remainingPairs === 7) {
-            const pongTile = this.parseTileKey(tileKey);
-            const isLastTileInPong = lastTile &&
-              lastTile.suit === pongTile.suit &&
-              lastTile.value === pongTile.value;
-
-            // Get display tiles based on what the last tile completes
-            let displayTiles = [];
-            const pongTiles = handTiles.filter(t =>
-              t.suit === pongTile.suit && t.value === pongTile.value
-            ).slice(0, 3);
-
-            if (isLastTileInPong) {
-              displayTiles = pongTiles;
-            } else if (lastTile) {
-              displayTiles = handTiles.filter(t =>
-                t.suit === lastTile.suit && t.value === lastTile.value
+          // Extract all pairs
+          const pairs = [];
+          const usedIds = new Set(pongTiles.map(t => t.id));
+          for (const [key, pairCount] of Object.entries(remainingCounts)) {
+            if (pairCount === 2) {
+              const parsed = this.parseTileKey(key);
+              const pairTiles = handTiles.filter(t =>
+                t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
               ).slice(0, 2);
+              pairTiles.forEach(t => usedIds.add(t.id));
+              pairs.push({ type: 'pair', tiles: pairTiles });
             }
-
-            // Extract all pairs
-            const pairs = [];
-            const usedIds = new Set(pongTiles.map(t => t.id));
-            for (const [key, pairCount] of Object.entries(remainingCounts)) {
-              if (pairCount === 2) {
-                const parsed = this.parseTileKey(key);
-                const pairTiles = handTiles.filter(t =>
-                  t.suit === parsed.suit && t.value === parsed.value && !usedIds.has(t.id)
-                ).slice(0, 2);
-                pairTiles.forEach(t => usedIds.add(t.id));
-                pairs.push({ type: 'pair', tiles: pairTiles });
-              }
-            }
-
-            combinations.push({
-              pattern: 'ligu_ligu',
-              lastTileRole: isLastTileInPong ? 'pong' : 'pair',
-              displayTiles: displayTiles,
-              pongKey: tileKey,
-              sets: [{ type: 'pong', tiles: pongTiles }],
-              pairs: pairs
-            });
           }
+
+          combinations.push({
+            pattern: 'ligu_ligu',
+            lastTileRole: isLastTileInPong ? 'pong' : 'pair',
+            displayTiles: displayTiles,
+            pongKey: tileKey,
+            sets: [{ type: 'pong', tiles: pongTiles }],
+            pairs: pairs
+          });
         }
       }
     }
