@@ -1290,8 +1290,8 @@
 
 /* Claim Popup - 50% transparent */
 .claim-popup {
-  background: rgba(42, 58, 74, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(42, 58, 74, 0.2);
+  backdrop-filter: blur(0.1px);
   border-radius: 12px;
   padding: 20px;
   min-width: 280px;
@@ -1402,21 +1402,23 @@
 /* Pass button - 不吃 */
 .claim-pass-btn {
   margin-top: 15px;
-  padding: 10px 30px;
-  background: linear-gradient(135deg, #666 0%, #444 100%);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 18px;
+  background: linear-gradient(135deg, #666 0%, #444 20%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
   color: #fff;
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  opacity: 0.7;
 }
 
 .claim-pass-btn:hover {
   background: linear-gradient(135deg, #777 0%, #555 100%);
   border-color: rgba(255, 255, 255, 0.5);
   transform: scale(1.05);
+  opacity: 0.7;
 }
 
 /* Claim Options List - shows all possible claim sets */
@@ -1439,6 +1441,7 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  opacity: 0.9;
 }
 
 .claim-option-btn:hover {
@@ -1854,7 +1857,7 @@
 }
 
 .win-popup-actions .claim-pass-btn {
-  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 20%);
 }
 
 .win-popup-actions .claim-option-hu {

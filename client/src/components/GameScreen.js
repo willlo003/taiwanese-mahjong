@@ -809,7 +809,7 @@ function GameScreen({
         <div className="bottom-actions">
           <div className="player-actions">
             <button className="action-btn" onClick={handleDiscard} disabled={!canDiscard}>
-              {tingEnabled ? '聽牌' : '打牌'}
+              {tingEnabled ? '打牌' : '打牌'}
             </button>
             <button
               className="action-btn action-btn-gang"
@@ -854,7 +854,7 @@ function GameScreen({
             >
               自摸
             </button>
-            <button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>
+            {/*<button className="action-btn action-btn-leave" onClick={() => setShowLeaveConfirm(true)}>離開</button>*/}
           </div>
         </div>
       </div>
