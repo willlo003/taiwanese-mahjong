@@ -64,6 +64,7 @@ function GameResultScreen({
               <div className="result-col-name">
                 {result.playerName}
                 {result.isDealer && <span className="dealer-badge">莊</span>}
+                {result.isTing && <span className="ting-badge">（聽）</span>}
               </div>
               <div className="result-col-position">
                 {windToChinese(result.position)}

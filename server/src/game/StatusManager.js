@@ -209,32 +209,42 @@ export class StatusManager {
     // Pattern: 5 sets + 1 pair = 東x3 + 南x3 + 西x3 + 北x3 + 中x3 + 發x2
     // This is a valid winning hand (大四喜 + 字一色)
     const DEBUG_SOUTH_TILES = [
-      { suit: 'wind', value: 'east' },    // 東 (set 1: pong)
-      { suit: 'wind', value: 'east' },    // 東
+      // { suit: 'wind', value: 'east' },    // 東 (set 1: pong)
       // { suit: 'wind', value: 'east' },    // 東
-      { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
-      { suit: 'wind', value: 'south' },   // 南
+      // { suit: 'wind', value: 'east' },    // 東
+      // { suit: 'wind', value: 'south' },   // 南 (set 2: pong)
       // { suit: 'wind', value: 'south' },   // 南
-      { suit: 'wind', value: 'north' },    // 西 (set 3: pong)
-      { suit: 'wind', value: 'north' },    // 西
+      // { suit: 'wind', value: 'south' },   // 南
+      // { suit: 'wind', value: 'north' },    // 西 (set 3: pong)
+      // { suit: 'wind', value: 'north' },    // 西
       // { suit: 'wind', value: 'west' },    // 西
-      { suit: 'wind', value: 'north' },   // 北 (set 4: pong)
-      { suit: 'wind', value: 'north' },   // 北
+      // { suit: 'wind', value: 'north' },   // 北 (set 4: pong)
       // { suit: 'wind', value: 'north' },   // 北
-      { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
+      // { suit: 'wind', value: 'north' },   // 北
+      // { suit: 'dragon', value: 'red' },   // 中 (set 5: pong)
       // { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dragon', value: 'red' },   // 中
       // { suit: 'dot', value: 6 },
       // { suit: 'dot', value: 5 },  // 五筒
-      { suit: 'dot', value: 7 },
-      { suit: 'dot', value: 7 },  // 五筒
-      { suit: 'dot', value: 3 },
-      { suit: 'dot', value: 3 },  // 五筒
-      { suit: 'dot', value: 4 },
-      { suit: 'dot', value: 4 },  // 五筒
-      { suit: 'dot', value: 4 },  // 五筒
-      { suit: 'dragon', value: 'red' },   // 中
 
+
+      { suit: 'dot', value: 1 },  // 一筒 (set 1: pong)
+      { suit: 'dot', value: 1 },  // 一筒
+      { suit: 'dot', value: 3 },  // 一筒
+      { suit: 'dot', value: 2 },  // 二筒 (set 2: pong)
+      { suit: 'dot', value: 2 },  // 二筒
+      { suit: 'dot', value: 3 },  // 二筒
+      { suit: 'dot', value: 9 },  // 三筒 (set 3: pong)
+      { suit: 'dot', value: 9 },  // 三筒
+      { suit: 'dot', value: 4 },  // 三筒
+      { suit: 'dot', value: 8 },  // 四筒 (set 4: pong)
+      { suit: 'dot', value: 8 },  // 四筒
+      { suit: 'dot', value: 4 },  // 四筒
+      { suit: 'dot', value: 7 },  // 五筒 (set 5: pong)
+      { suit: 'dot', value: 4 },  // 五筒
+      { suit: 'dot', value: 5 },  // 五筒
+      { suit: 'dot', value: 6 },  // 六筒
+      { suit: 'dot', value: 7 },  // 六筒
     ];
 
     // DEBUG: Set to true to give 南 player specific tiles for testing
@@ -242,23 +252,23 @@ export class StatusManager {
     // Pattern: 5 sets + 1 single = 一筒x3 + 二筒x3 + 三筒x3 + 四筒x3 + 五筒x3 + 六筒x1
     // Waiting for 六筒 to complete the pair
     const DEBUG_DEALER_TILES = [
-      { suit: 'dot', value: 1 },  // 一筒 (set 1: pong)
-      { suit: 'dot', value: 1 },  // 一筒
-      { suit: 'dot', value: 1 },  // 一筒
-      { suit: 'dot', value: 2 },  // 二筒 (set 2: pong)
-      { suit: 'dot', value: 2 },  // 二筒
-      { suit: 'dot', value: 2 },  // 二筒
-      { suit: 'dot', value: 9 },  // 三筒 (set 3: pong)
-      { suit: 'dot', value: 9 },  // 三筒
-      { suit: 'dot', value: 9 },  // 三筒
-      { suit: 'dot', value: 8 },  // 四筒 (set 4: pong)
-      { suit: 'dot', value: 8 },  // 四筒
-      { suit: 'dot', value: 8 },  // 四筒
-      { suit: 'dot', value: 7 },  // 五筒 (set 5: pong)
+      { suit: 'dot', value: 1 },
+      { suit: 'dot', value: 1 },  // 五筒
+      { suit: 'dot', value: 2 },
+      { suit: 'dot', value: 3 },  // 五筒
+      { suit: 'dot', value: 3 },
       { suit: 'dot', value: 4 },  // 五筒
       { suit: 'dot', value: 5 },  // 五筒
-      { suit: 'dot', value: 6 },  // 六筒
-      { suit: 'dot', value: 7 },  // 六筒
+      { suit: 'dot', value: 6 },
+      { suit: 'dot', value: 7 },  // 五筒
+      { suit: 'dot', value: 8 },
+      { suit: 'character', value: 3 },  // 五筒
+      { suit: 'character', value: 3 },
+      { suit: 'character', value: 4 },
+      { suit: 'character', value: 5 },
+      { suit: 'character', value: 6 },
+      { suit: 'character', value: 7 },
+      { suit: 'character', value: 7 },
     ];
 
     // Dealer (莊) gets 17 tiles, others get 16 (Taiwanese Mahjong)

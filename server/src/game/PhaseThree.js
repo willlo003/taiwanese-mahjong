@@ -100,6 +100,7 @@ export class PhaseThree {
           ? (player.id !== winnerId)
           : (player.id === loserId);
         const isDealer = game.players[game.dealerIndex].id === player.id;
+        const isTing = game.tingStatus.get(player.id) || false;
         const hand = game.playerHands.get(player.id) || [];
         const playerMelds = game.melds.get(player.id) || [];
 
@@ -116,6 +117,7 @@ export class PhaseThree {
           playerName: player.name,
           position: game.getPlayerWind(player.id),
           isWinner, isLoser, isDealer,
+          isTing,
           score: 0,
           totalScore: 0,
           hand,
@@ -235,6 +237,7 @@ export class PhaseThree {
       const isWinner = winnerIds.includes(player.id);
       const isLoser = player.id === loserId;
       const isDealer = game.players[game.dealerIndex].id === player.id;
+      const isTing = game.tingStatus.get(player.id) || false;
       const hand = game.playerHands.get(player.id) || [];
       const playerMelds = game.melds.get(player.id) || [];
 
@@ -251,6 +254,7 @@ export class PhaseThree {
         playerName: player.name,
         position: game.getPlayerWind(player.id),
         isWinner, isLoser, isDealer,
+        isTing,
         score: 0,
         totalScore: 0,
         hand,

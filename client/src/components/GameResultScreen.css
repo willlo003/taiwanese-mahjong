@@ -118,6 +118,16 @@
   font-weight: bold;
 }
 
+.ting-badge {
+  background: rgba(236, 147, 28, 0.68);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
 .result-col-position,
 .result-col-score,
 .result-col-total {

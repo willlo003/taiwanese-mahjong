@@ -986,6 +986,7 @@ function ResultPopup({ gameResult, playerInfo, players, readyPlayers, isReady, o
               <span className="result-player-name">
                 {result.playerName}
                 {result.isDealer && <span className="dealer-badge">莊</span>}
+                {result.isTing && <span className="ting-badge">（聽）</span>}
               </span>
               <span className="result-player-position">{windToChinese(result.position)}</span>
               <span className="result-player-ready">
