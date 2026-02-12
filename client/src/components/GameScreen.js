@@ -200,7 +200,33 @@ function GameScreen({
       });
     }
 
-    // Add the pair (眼) for standard pattern
+    // Add orphan tiles (for thirteen orphans pattern)
+    // Show all orphans together (no gaps), excluding the pair
+    if (combination.orphanTiles && combination.orphanTiles.length > 0) {
+      // Get the pair key to exclude pair tiles from orphans display
+      const pairKey = combination.pairKey;
+
+      // Filter out the pair tiles from orphans
+      const orphanTilesWithoutPair = combination.orphanTiles.filter(tile => {
+        const tileKey = `${tile.suit}-${tile.value}`;
+        return tileKey !== pairKey;
+      });
+
+      // Show all orphans in a single group (no gaps between tiles)
+      if (orphanTilesWithoutPair.length > 0) {
+        const orderedTiles = reverseGroups ? [...orphanTilesWithoutPair].reverse() : orphanTilesWithoutPair;
+        groups.push(
+          <div key="orphans" className="winner-hand-group winner-hand-orphan">
+            {orderedTiles.map((tile, tileIdx) => {
+              usedTileIds.add(tile.id);
+              return <Tile key={tileIdx} tile={tile} className={getTileClassName(tile)} rotated={rotated} />;
+            })}
+          </div>
+        );
+      }
+    }
+
+    // Add the pair (眼) for standard pattern and thirteen orphans
     if (combination.pair && combination.pair.tiles) {
       // Reverse tiles within group for right player (bottom to top) and top player (right to left)
       const orderedTiles = reverseGroups ? [...combination.pair.tiles].reverse() : combination.pair.tiles;
@@ -1179,18 +1205,39 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
           {claimOptions?.canHu && lastDiscardedTile && claimOptions.winCombinations && claimOptions.winCombinations.length > 0 && (
             claimOptions.winCombinations.map((combo, idx) => {
               const huClaim = { type: 'hu', tiles: [lastDiscardedTile], combination: combo, combinationIndex: idx };
-              // Use displayTiles which shows the actual set/pair that the last tile completes
-              const tilesToShow = combo.displayTiles || combo.pairTiles || [];
-              // Determine the role text - use 眼 for pair, 同子 for pong, 順子 for chow
+
+              // For thirteen orphans pattern, show differently based on lastTileRole
+              let tilesToShow = [];
               let roleText = '';
-              if (combo.lastTileRole === 'pair') {
-                roleText = '眼';
-              } else if (combo.lastTileRole === 'pong') {
-                roleText = '同子';
-              } else if (combo.lastTileRole === 'chow') {
-                roleText = '順子';
+
+              if (combo.pattern === 'thirteen_orphans') {
+                if (combo.lastTileRole === 'pair') {
+                  // If the claimed tile completes the pair, show the pair
+                  tilesToShow = combo.pairTiles || combo.displayTiles || [];
+                  roleText = '眼';
+                } else if (combo.lastTileRole === 'orphan') {
+                  // If the claimed tile is an orphan, show only that single tile
+                  tilesToShow = [lastDiscardedTile];
+                  roleText = '么';
+                } else if (combo.lastTileRole === 'set') {
+                  // If the claimed tile completes a set, show only that set
+                  tilesToShow = combo.displayTiles || [];
+                  roleText = '組';
+                }
               } else {
-                roleText = '組';
+                // For other patterns, use displayTiles which shows the actual set/pair that the last tile completes
+                tilesToShow = combo.displayTiles || combo.pairTiles || [];
+
+                // Determine the role text - use 眼 for pair, 同子 for pong, 順子 for chow
+                if (combo.lastTileRole === 'pair') {
+                  roleText = '眼';
+                } else if (combo.lastTileRole === 'pong') {
+                  roleText = '同子';
+                } else if (combo.lastTileRole === 'chow') {
+                  roleText = '順子';
+                } else {
+                  roleText = '組';
+                }
               }
 
               return (
@@ -1201,12 +1248,12 @@ function ClaimPopup({ claimOptions, pendingClaim, onShang, onPong, onGang, onHu,
                 >
                   <span className="claim-option-label">食</span>
                   <div className="claim-tiles-preview">
-                    {/* Show the tiles that form the winning set/pair (including the discarded tile) */}
+                    {/* Show the tiles based on the pattern and role */}
                     {tilesToShow.map((tile, tileIdx) => (
                       <Tile key={tileIdx} tile={tile} size="small" />
                     ))}
-                    {/* Show the discarded tile if not already in displayTiles */}
-                    {!tilesToShow.some(t => t.suit === lastDiscardedTile.suit && t.value === lastDiscardedTile.value) && (
+                    {/* For non-thirteen-orphans, show the discarded tile if not already in displayTiles */}
+                    {combo.pattern !== 'thirteen_orphans' && !tilesToShow.some(t => t.suit === lastDiscardedTile.suit && t.value === lastDiscardedTile.value) && (
                       <Tile tile={lastDiscardedTile} size="small" />
                     )}
                   </div>

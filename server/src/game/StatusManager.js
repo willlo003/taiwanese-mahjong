@@ -230,20 +230,20 @@ export class StatusManager {
 
       { suit: 'dot', value: 1 },  // 一筒 (set 1: pong)
       { suit: 'dot', value: 1 },  // 一筒
-      { suit: 'dot', value: 3 },  // 一筒
+      { suit: 'dot', value: 2 },  // 一筒
       { suit: 'dot', value: 2 },  // 二筒 (set 2: pong)
-      { suit: 'dot', value: 2 },  // 二筒
       { suit: 'dot', value: 3 },  // 二筒
-      { suit: 'dot', value: 9 },  // 三筒 (set 3: pong)
-      { suit: 'dot', value: 9 },  // 三筒
+      { suit: 'dot', value: 3 },  // 二筒
+      { suit: 'dot', value: 4 },  // 三筒 (set 3: pong)
       { suit: 'dot', value: 4 },  // 三筒
-      { suit: 'dot', value: 8 },  // 四筒 (set 4: pong)
-      { suit: 'dot', value: 8 },  // 四筒
-      { suit: 'dot', value: 4 },  // 四筒
+      { suit: 'dot', value: 5 },  // 三筒
+      { suit: 'dot', value: 5 },  // 四筒 (set 4: pong)
+      { suit: 'dot', value: 6 },  // 四筒
+      { suit: 'dot', value: 6 },  // 四筒
       { suit: 'dot', value: 7 },  // 五筒 (set 5: pong)
-      { suit: 'dot', value: 4 },  // 五筒
-      { suit: 'dot', value: 5 },  // 五筒
-      { suit: 'dot', value: 6 },  // 六筒
+      { suit: 'dot', value: 7 },  // 五筒
+      { suit: 'dot', value: 8 },  // 五筒
+      { suit: 'dot', value: 8 },  // 六筒
       { suit: 'dot', value: 7 },  // 六筒
     ];
 
@@ -253,22 +253,24 @@ export class StatusManager {
     // Waiting for 六筒 to complete the pair
     const DEBUG_DEALER_TILES = [
       { suit: 'dot', value: 1 },
-      { suit: 'dot', value: 1 },  // 五筒
-      { suit: 'dot', value: 2 },
-      { suit: 'dot', value: 3 },  // 五筒
-      { suit: 'dot', value: 3 },
-      { suit: 'dot', value: 4 },  // 五筒
-      { suit: 'dot', value: 5 },  // 五筒
-      { suit: 'dot', value: 6 },
-      { suit: 'dot', value: 7 },  // 五筒
-      { suit: 'dot', value: 8 },
+      { suit: 'dot', value: 9 },  // 五筒
+      { suit: 'character', value: 1 },
+      { suit: 'character', value: 9 },  // 五筒
+      { suit: 'bamboo', value: 1 },
+      { suit: 'bamboo', value: 9 },  // 五筒
+      { suit: 'wind', value: 'east' },  // 五筒
+      { suit: 'wind', value: 'south' },  // 五筒
+      { suit: 'wind', value: 'west' },  // 五筒
+      { suit: 'wind', value: 'north' },  // 五筒
+      { suit: 'dragon', value: 'green' },  // 五筒
+      // { suit: 'dragon', value: 'red' },  // 五筒
+      { suit: 'dragon', value: 'white' },  // 五筒
+      { suit: 'dragon', value: 'white' },  // 五筒
+      { suit: 'character', value: 2 },  // 五筒
       { suit: 'character', value: 3 },  // 五筒
-      { suit: 'character', value: 3 },
-      { suit: 'character', value: 4 },
-      { suit: 'character', value: 5 },
-      { suit: 'character', value: 6 },
-      { suit: 'character', value: 7 },
-      { suit: 'character', value: 7 },
+      { suit: 'character', value: 4 },  // 五筒
+      // { suit: 'character', value: 5 },  // 五筒
+      { suit: 'character', value: 6 },  // 五筒
     ];
 
     // Dealer (莊) gets 17 tiles, others get 16 (Taiwanese Mahjong)
@@ -286,6 +288,7 @@ export class StatusManager {
         console.log(`[DEBUG] Dealing specific tiles to 東 position player ${player.name} (dealer: ${isDealer})`);
 
         DEBUG_DEALER_TILES.forEach(targetTile => {
+          console.log("targetTile: ", targetTile, "for ", player.name )
           const tileIndex = this.tileManager.tiles.findIndex(
             t => t.suit === targetTile.suit && t.value === targetTile.value
           );

@@ -2172,6 +2172,13 @@
   border: 1px solid rgba(255, 215, 0, 0.3);
 }
 
+/* Winner hand orphan tiles (十三么) - special styling with no gaps */
+.winner-hand-group.winner-hand-orphan {
+  background: rgba(155, 89, 182, 0.15);
+  border: 1px solid rgba(155, 89, 182, 0.3);
+  gap: 0px; /* No gaps between orphan tiles */
+}
+
 /* Winner hand groups container */
 .winner-hand-groups {
   display: flex;

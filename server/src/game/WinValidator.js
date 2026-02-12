@@ -10,20 +10,27 @@ export class WinValidator {
   static isWinningHandWithMelds(handTiles, numRevealedMelds, lastTile, player) {
     let nonBonusTiles = handTiles.filter(t => t.suit !== 'flower' && t.suit !== 'season');
     nonBonusTiles.push(lastTile);
-    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-    if (normalCombos.length > 0) {
-      console.log(`[WIN_VALIDATOR] Normal combinations.pattern:`, normalCombos.pattern);
-      console.log(`[WIN_VALIDATOR] 🎉 WIN! Normal pattern ${player.name}`);
-      return { isWin: true, pattern: 'standard', combinations: this.deduplicateWinCombinations(normalCombos) };
+
+    if (numRevealedMelds <= 1) {
+      const thirteenOrphansCombos = this.findThirteenOrphansCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+      if (thirteenOrphansCombos.length > 0) {
+        console.log(`[WIN_VALIDATOR] 🎉 WIN! Thirteen Orphans pattern for ${player.name}`);
+        return { isWin: true, pattern: 'thirteen_orphans', combinations: this.deduplicateWinCombinations(thirteenOrphansCombos) };
+      }
     }
 
     if (numRevealedMelds === 0) {
       const liguLiguCombos = this.findLiguLiguCombinations(nonBonusTiles, numRevealedMelds, lastTile);
-      console.log(`[WIN_VALIDATOR] liguLiguCombos :`, liguLiguCombos);
       if (liguLiguCombos.length > 0) {
         console.log(`[WIN_VALIDATOR] 🎉 WIN! Ligu Ligu pattern for ${player.name}`);
         return { isWin: true, pattern: 'ligu_ligu', combinations: this.deduplicateWinCombinations(liguLiguCombos) };
       }
+    }
+
+    const normalCombos = this.findNormalWinCombinations(nonBonusTiles, numRevealedMelds, lastTile);
+    if (normalCombos.length > 0) {
+      console.log(`[WIN_VALIDATOR] 🎉 WIN! Normal pattern ${player.name}`);
+      return { isWin: true, pattern: 'standard', combinations: this.deduplicateWinCombinations(normalCombos) };
     }
 
     console.log(`[WIN_VALIDATOR] No valid winning combination found for ${player.name}`);
@@ -399,6 +406,218 @@ export class WinValidator {
     return combinations;
   }
 
+  /**
+   * Find all Thirteen Orphans (十三么) combinations
+   * Requirements:
+   * a) Must include all 13 terminal/honor tiles: 1/9 of each suit + all winds + all dragons
+   * b) One of these 13 tiles appears as a pair (eyes)
+   * c) Can have one revealed meld (pong/chow/gang) of other tiles
+   */
+  static findThirteenOrphansCombinations(handTiles, numRevealedMelds, lastTile) {
+    const combinations = [];
+
+    // Define the 13 required orphan tiles
+    const orphanTiles = [
+      { suit: 'dot', value: 1 },
+      { suit: 'dot', value: 9 },
+      { suit: 'character', value: 1 },
+      { suit: 'character', value: 9 },
+      { suit: 'bamboo', value: 1 },
+      { suit: 'bamboo', value: 9 },
+      { suit: 'wind', value: 'east' },
+      { suit: 'wind', value: 'south' },
+      { suit: 'wind', value: 'west' },
+      { suit: 'wind', value: 'north' },
+      { suit: 'dragon', value: 'red' },
+      { suit: 'dragon', value: 'green' },
+      { suit: 'dragon', value: 'white' }
+    ];
+
+    const tileCounts = this.countTiles(handTiles);
+    const orphanKeys = orphanTiles.map(t => this.makeTileKey(t.suit, t.value));
+
+    if (numRevealedMelds === 1) {
+      // Case 1: One set already revealed, just check for 13 orphans + 1 pair
+      const orphanCounts = {};
+      let hasAllOrphans = true;
+
+      for (const orphan of orphanTiles) {
+        const key = this.makeTileKey(orphan.suit, orphan.value);
+        const count = tileCounts[key] || 0;
+        orphanCounts[key] = count;
+
+        if (count === 0) {
+          hasAllOrphans = false;
+          break;
+        }
+      }
+
+      if (!hasAllOrphans) {
+        return combinations;
+      }
+
+      // Find which orphan tile forms the pair
+      for (const key of orphanKeys) {
+        if (orphanCounts[key] === 2) {
+          // This orphan tile is the pair
+          const pairTile = this.parseTileKey(key);
+          const isLastTileInPair = lastTile &&
+            lastTile.suit === pairTile.suit &&
+            lastTile.value === pairTile.value;
+
+          // Get the pair tiles
+          const pairTiles = handTiles.filter(t =>
+            t.suit === pairTile.suit && t.value === pairTile.value
+          ).slice(0, 2);
+
+          // Get all orphan tiles for display
+          const orphanTilesInHand = [];
+          const usedIds = new Set();
+
+          for (const orphan of orphanTiles) {
+            const orphanKey = this.makeTileKey(orphan.suit, orphan.value);
+            const count = orphanCounts[orphanKey];
+            const tiles = handTiles.filter(t =>
+              t.suit === orphan.suit && t.value === orphan.value && !usedIds.has(t.id)
+            ).slice(0, count);
+            tiles.forEach(t => {
+              usedIds.add(t.id);
+              orphanTilesInHand.push(t);
+            });
+          }
+
+          combinations.push({
+            pattern: 'thirteen_orphans',
+            lastTileRole: isLastTileInPair ? 'pair' : 'orphan',
+            displayTiles: isLastTileInPair ? pairTiles : orphanTilesInHand,
+            pairTiles: pairTiles,
+            pairKey: key,
+            orphanTiles: orphanTilesInHand,
+            sets: [],
+            pair: { tiles: pairTiles }
+          });
+        }
+      }
+    } else {
+      // Case 2: No revealed melds, need to find 1 set + 13 orphans + 1 pair
+      // Try to extract one set from non-orphan tiles or extra orphan tiles
+
+      // First, check if we have at least one of each orphan tile
+      const orphanCounts = {};
+      for (const orphan of orphanTiles) {
+        const key = this.makeTileKey(orphan.suit, orphan.value);
+        orphanCounts[key] = tileCounts[key] || 0;
+      }
+
+      // Try each possible pair from orphan tiles
+      for (const pairKey of orphanKeys) {
+        if (orphanCounts[pairKey] >= 2) {
+          // Try to form a set from the remaining tiles
+          const remainingCounts = { ...tileCounts };
+
+          // Reserve 2 tiles for the pair
+          remainingCounts[pairKey] -= 2;
+
+          // Reserve 1 of each other orphan tile
+          for (const key of orphanKeys) {
+            if (key !== pairKey) {
+              remainingCounts[key] -= 1;
+              if (remainingCounts[key] < 0) {
+                // Missing an orphan tile
+                remainingCounts[key] = -999; // Mark as invalid
+              }
+            }
+          }
+
+          // Check if any orphan count is negative (missing orphan)
+          let hasAllOrphans = true;
+          for (const key of orphanKeys) {
+            if (remainingCounts[key] < 0) {
+              hasAllOrphans = false;
+              break;
+            }
+          }
+
+          if (!hasAllOrphans) {
+            continue; // Skip this pair option
+          }
+
+          // Now check if remaining tiles can form exactly 1 set
+          if (this.canFormSets(remainingCounts, 1)) {
+            // Valid thirteen orphans combination!
+            const pairTile = this.parseTileKey(pairKey);
+            const isLastTileInPair = lastTile &&
+              lastTile.suit === pairTile.suit &&
+              lastTile.value === pairTile.value;
+
+            // Get the pair tiles
+            const pairTiles = handTiles.filter(t =>
+              t.suit === pairTile.suit && t.value === pairTile.value
+            ).slice(0, 2);
+
+            // Get all orphan tiles for display
+            const orphanTilesInHand = [];
+            const usedIds = new Set(pairTiles.map(t => t.id));
+
+            for (const orphan of orphanTiles) {
+              const orphanKey = this.makeTileKey(orphan.suit, orphan.value);
+              const count = orphanKey === pairKey ? 0 : 1; // Already used pair
+              const tiles = handTiles.filter(t =>
+                t.suit === orphan.suit && t.value === orphan.value && !usedIds.has(t.id)
+              ).slice(0, count);
+              tiles.forEach(t => {
+                usedIds.add(t.id);
+                orphanTilesInHand.push(t);
+              });
+            }
+
+            // Extract the set from remaining tiles
+            const sets = this.extractSets(remainingCounts, 1, handTiles, Array.from(usedIds));
+
+            // Determine if the last tile is part of the set
+            let lastTileRole = 'orphan';
+            let displayTiles = orphanTilesInHand;
+
+            if (isLastTileInPair) {
+              lastTileRole = 'pair';
+              displayTiles = pairTiles;
+            } else if (sets && sets.length > 0 && lastTile) {
+              // Check if the last tile is in any of the sets
+              const isInSet = sets.some(set =>
+                set.tiles && set.tiles.some(t =>
+                  t.suit === lastTile.suit && t.value === lastTile.value
+                )
+              );
+              if (isInSet) {
+                lastTileRole = 'set';
+                // Find the set that contains the last tile
+                const setWithLastTile = sets.find(set =>
+                  set.tiles && set.tiles.some(t =>
+                    t.suit === lastTile.suit && t.value === lastTile.value
+                  )
+                );
+                displayTiles = setWithLastTile ? setWithLastTile.tiles : [lastTile];
+              }
+            }
+
+            combinations.push({
+              pattern: 'thirteen_orphans',
+              lastTileRole: lastTileRole,
+              displayTiles: displayTiles,
+              pairTiles: pairTiles,
+              pairKey: pairKey,
+              orphanTiles: orphanTilesInHand,
+              sets: sets || [],
+              pair: { tiles: pairTiles }
+            });
+          }
+        }
+      }
+    }
+
+    return combinations;
+  }
+  
   static deduplicateWinCombinations(combinations) {
     const seen = new Set();
     return combinations.filter(combo => {
